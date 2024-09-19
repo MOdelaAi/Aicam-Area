@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modela Ai IOT</title>
+    <!-- Include jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      body {
+        background-color: #e1e1e1;
+        font-family: "Prompt", sans-serif;
+      }
+
+      .fullscreen-btn,
+      .exit-fullscreen-btn {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        padding: 10px;
+        cursor: pointer;
+        z-index: 9999;
+      }
+
+      .fullscreen-btn {
+        display: block;
+      }
+
+      .exit-fullscreen-btn {
+        background-color: rgba(0, 0, 0, 0.8);
+        display: none;
+        /* ซ่อนปุ่มเริ่มต้น */
+      }
+
+      .showvideostream {
+        width: 640px;
+        height: 480px;
+      }
+
+      @media only screen and (max-width: 768px) {
+        .showvideostream {
+          width: 100%;
+          height: 100%;
+        }
+      }
+
+      .showvideostream_fullscreen {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* ปรับ CSS สำหรับการแสดงปุ่มในโหมดเต็มหน้าจอ */
+      .fullscreen-mode .fullscreen-btn,
+      .fullscreen-mode .exit-fullscreen-btn {
+        z-index: 10000;
+        /* ให้แน่ใจว่าปุ่มอยู่ด้านบนสุด */
+      }
+    </style>
+
+    <script>
+      $(document).ready(function () {
+        function getThaiDayName(dayIndex) {
+          const dayNames = [
+            "อาทิตย์",
+            "จันทร์",
+            "อังคาร",
+            "พุธ",
+            "พฤหัสบดี",
+            "ศุกร์",
+            "เสาร์",
+          ];
+          return dayNames[dayIndex];
+        }
+
+        function formatDate(date) {
+          const dayNames = getThaiDayName(date.getDay());
+          const day = date.getDate();
+          const month = date.getMonth() + 1;
+          const year = date.getFullYear();
+          const hours = String(date.getHours()).padStart(2, "0");
+          const minutes = String(date.getMinutes()).padStart(2, "0");
+          const seconds = String(date.getSeconds()).padStart(2, "0");
+
+          return `${dayNames} ${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+        }
+
+        function updateDateTime() {
+          const now = new Date();
+          $("#day").text(formatDate(now));
+        }
+
+        check_temperature_pi();
+
+        function check_temperature_pi() {
+          $.ajax({
+            type: "GET",
+            url: "/check_temperature_pi",
+            success: function (response) {
+              $("#temperature").text(response.cpu_temp);
+            },
+          });
+        }
+
+        setInterval(updateDateTime, 1000);
+        setInterval(check_temperature_pi, 600000);
+      });
+
+      function toggleFullscreen() {
+        const elem = document.getElementById("testfullscreen");
+        const fullscreenButton = document.getElementById("fullscreenButton");
+        const exitFullscreenButton = document.getElementById(
+          "exitFullscreenButton"
+        );
+        const body = document.body;
+        if (!document.fullscreenElement) {
+          // Enter fullscreen
+          if (elem.requestFullscreen) {
+            elem.requestFullscreen();
+          } else if (elem.mozRequestFullScreen) {
+            // Firefox
+            elem.mozRequestFullScreen();
+          } else if (elem.webkitRequestFullscreen) {
+            // Chrome, Safari and Opera
+            elem.webkitRequestFullscreen();
+          } else if (elem.msRequestFullscreen) {
+            // IE/Edge
+            elem.msRequestFullscreen();
+          }
+          fullscreenButton.style.display = "none";
+          exitFullscreenButton.style.display = "block";
+          body.classList.add("fullscreen-mode"); // เพิ่มคลาสสำหรับโหมดเต็มหน้าจอ
+          $("#showvideo").addClass("showvideostream_fullscreen");
+          $("#showvideo").removeClass("showvideostream");
+        } else {
+          // Exit fullscreen
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if (document.mozCancelFullScreen) {
+            // Firefox
+            document.mozCancelFullScreen();
+          } else if (document.webkitExitFullscreen) {
+            // Chrome, Safari and Opera
+            document.webkitExitFullscreen();
+          } else if (document.msExitFullscreen) {
+            // IE/Edge
+            document.msExitFullscreen();
+          }
+          fullscreenButton.style.display = "block";
+          exitFullscreenButton.style.display = "none";
+          body.classList.remove("fullscreen-mode"); // ลบคลาสสำหรับโหมดเต็มหน้าจอ
+          $("#showvideo").addClass("showvideostream");
+          $("#showvideo").removeClass("showvideostream_fullscreen");
+        }
+      }
+
+      $(document).on("fullscreenchange", function (e) {
+        if (!document.fullscreenElement) {
+          exitFullscreenfunction();
+        } else {
+        }
+      });
+
+      function exitFullscreenfunction() {
+        const elem = document.getElementById("testfullscreen");
+        const fullscreenButton = document.getElementById("fullscreenButton");
+        const exitFullscreenButton = document.getElementById(
+          "exitFullscreenButton"
+        );
+        const body = document.body;
+        if (document.exitFullscreen) {
+        } else if (document.mozCancelFullScreen) {
+          // Firefox
+          document.mozCancelFullScreen();
+        } else if (document.webkitExitFullscreen) {
+          // Chrome, Safari and Opera
+          document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+          // IE/Edge
+          document.msExitFullscreen();
+        }
+        fullscreenButton.style.display = "block";
+        exitFullscreenButton.style.display = "none";
+        body.classList.remove("fullscreen-mode"); // ลบคลาสสำหรับโหมดเต็มหน้าจอ
+        $("#showvideo").addClass("showvideostream");
+        $("#showvideo").removeClass("showvideostream_fullscreen");
+      }
+    </script>
+  </head>
+
+  <body>
+    <div style="text-align: center">
+      <span style="font-weight: bold; font-size: 32px"
+        >Modela Ai Camera Counting
+      </span>
+      <!-- <img style="width: 10%;" src="/static/assets/images/logo.png" alt=""> -->
+      <p>วัน <span id="day"></span></p>
+      <p>อุณหภูมิ Pi (Server): <span id="temperature"></span> 'C</p>
+      <div id="testfullscreen">
+        <img
+          id="showvideo"
+          name="showvideo"
+          src="stream.mjpg"
+          class="showvideostream"
+        />
+        <button
+          class="fullscreen-btn"
+          id="fullscreenButton"
+          onclick="toggleFullscreen()"
+        >
+          เต็มหน้าจอ
+        </button>
+        <button
+          class="exit-fullscreen-btn"
+          id="exitFullscreenButton"
+          onclick="toggleFullscreen()"
+        >
+          ออกจากโหมดเต็มหน้าจอ
+        </button>
+      </div>
+    </div>
+  </body>
+</html>
