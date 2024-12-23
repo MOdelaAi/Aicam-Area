@@ -3,13 +3,17 @@ import os
 import subprocess
 import re 
 import time
+import logging
+logger = logging.getLogger(name=__name__)
 
 class CameraConnection:
-    def __init__(self,) -> None:
+    def __init__(self,width:int=640,height:int=480) -> None:
+        self.size_width = width
+        self.size_height = height
         self.status = self.create_camera_connection()
-        print("[INFO] The camera status : ", self.status)
-        self.size_width = 640
-        self.size_height = 480
+        logger.info(f"The camera status : {self.status}")
+        
+
         
   
     def set_width(self,width:int=640)->None:
@@ -28,9 +32,9 @@ class CameraConnection:
         success, img = self.camera.read()
         if not success:
             while True:
-                print("no device")
+                logger.warning("no camera device")
                 if self.create_camera_connection() == "connected successfully":
-                    print("[INFO] connected again!")
+                    logger.info("connected again!")
                     break  
                 time.sleep(1)
             return None
@@ -40,6 +44,8 @@ class CameraConnection:
         index = self.get_number_device()
         if index != -1:
             self.camera = cv2.VideoCapture(index)
+            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.size_width)
+            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.size_height )
             if self.camera.isOpened():
                 return "connected successfully"
         return "no camera"

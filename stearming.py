@@ -7,6 +7,8 @@ import os
 import socketserver
 from http import server
 from threading import Condition,Thread
+import logging
+
 
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):

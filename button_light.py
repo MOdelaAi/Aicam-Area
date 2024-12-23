@@ -1,8 +1,8 @@
-from gpiozero import RGBLED, Button
+from gpiozero import RGBLED, Button, LED
 import time
 import os
 import subprocess
-
+import re
 # Nofication through RGB LED
 class LED_Notification:
     # Class construction
@@ -12,7 +12,7 @@ class LED_Notification:
         self.green = (0.8, 1, 0)
         self.blue = (0, 1, 1)
         self.yellow = (1, 0.5, 0)
-    
+        
     # Set new color code for red LED
     def set_red(self, RED:float, GREEN:float, BLUE:float) -> None:
         self.red = (RED, GREEN, BLUE)
@@ -54,17 +54,17 @@ class LED_Notification:
         self.rgb_led.off()
 
     # If the wifi is connected
-    def wifi_connected(self) -> None:
-        self.rgb_led.color = self.blue
+    def wifi_and_server_connected(self) -> None:
+        self.rgb_led.color = (1,0,0)
     
     # If the wifi is connecting or not connected
-    def wifi_not_connected(self) -> None:
+    def wifi_and_server_not_connected(self) -> None:
         self.rgb_led.blink(
             on_time = 0.1, 
             off_time = 0.1, 
             fade_in_time = 0, 
             fade_out_time = 0,
-            on_color = self.blue,
+            on_color = (1,0,0),
             off_color = (0, 0, 0),
             n = 1,
             background = False
@@ -72,7 +72,7 @@ class LED_Notification:
         
     # If the SD card has been registered
     def registered_SD_card(self) -> None:
-        self.rgb_led.color = self.yellow
+        self.rgb_led.off()
     
     # If the SD card is not correct or has not been registered
     def unregistered_SD_card(self) -> None:
@@ -81,28 +81,37 @@ class LED_Notification:
             off_time = 0.1, 
             fade_in_time = 0, 
             fade_out_time = 0,
-            on_color = self.yellow,
-            off_color = (0, 0, 0),
+            on_color = (0,1,0),
+            off_color = (1,0,1),
             n = 1,
             background = False
             )
 
     # The device is processing
-    def processing(self) -> None:
-        self.rgb_led.color = self.green
+    def not_found_target(self) -> None:
+        self.rgb_led.off()
 
     # If the object has been detected
-    def detected(self) -> None:
+    def detected_target(self) -> None:
         self.rgb_led.blink(
             on_time = 0.1, 
             off_time = 0.1, 
             fade_in_time = 0, 
             fade_out_time = 0,
-            on_color = self.red,
+            on_color = (0,1,0),
             off_color = (0, 0, 0),
             n = 1,
             background = False
             )
+        
+class outload_Relay():
+    outload = LED(27)
+        
+    def detected_selected()->None:
+        outload_Relay.outload.on()
+
+    def not_detected_selected()->None:
+        outload_Relay.outload.off()
 
 # All button action
 class Button_Action:
@@ -110,11 +119,11 @@ class Button_Action:
     def __init__(self, btn_pin:int) -> None:
         self.btn = Button(btn_pin)
         self.press_time = 0
-        self.hold_duration = 4
+        self.hold_duration = 10
         self.held_duration = 0
         
         self.double_press_interval = 0.5
-        self.last_press_time =0
+        self.last_press_time = 0
         self.press_count = 0
     
     # Set press_time
@@ -145,20 +154,6 @@ class Button_Action:
     def reset_mode(self) -> bool:
              
         def button_pressed_action():
-            current_time = time.time()
-            
-            if current_time - self.last_press_time <=  self.double_press_interval:
-                 self.press_count += 1
-            else:
-                 self.press_count = 1
-                 
-            self.last_press_time = current_time
-              
-            if self.press_count == 2:
-                print("[INFO] The device is reboot now!")
-                time.sleep(3)
-                os.system("sudo reboot")
-                
             self.press_time = time.time()
 
         def button_released_action():
@@ -170,8 +165,18 @@ class Button_Action:
                     if os.path.isfile(i):
                         os.remove(i)
                     
-                #os.system("sudo rm -f /etc/NetworkManager/system-connections/*; sudo pkill -9 NetworkManager")
-                
+                target = os.popen("nmcli -t -f TYPE,UUID,NAME con").read()
+
+                # Regular expression to find the UUID
+                pattern = r"([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})"
+
+                # Search for the UUID in the string
+                match = re.search(pattern, target)
+                # If a match is found, print the UUID
+                if match:
+                    uuid = match.group(0)
+                    # os.system(f"sudo nmcli c delete {uuid}")
+                    
                 print('[INFO] The device is reseted now!')
                 time.sleep(3)
                 os.system("sudo reboot")
@@ -186,4 +191,36 @@ class Button_Action:
                 time.sleep(1)
         except Exception as e:
             print(f"The error is '{e}'.")
+
+# Reset button
+def reset():
+    global BUTTON_PIN
+
+    # Creat the reset button instance
+    btn = Button_Action(BUTTON_PIN)
+
+    # Start the reset button action
+    btn.reset_mode()
     
+if __name__ == '__main__':
+    RED_PIN = 23                # Pin num for red LED
+    GREEN_PIN = 19              # Pin num for yellow LED
+    BLUE_PIN = 4               # Pin num for green LED
+    OUTLOAD = 27
+    BUTTON_PIN = 17             # Pin num for reset button
+    notify = LED_Notification(RED_PIN, GREEN_PIN, BLUE_PIN)
+    cnt = 0
+    while True:
+        outload_Relay.detected_selected()
+  
+
+
+# can use 
+'''
+- notify.wifi_and_server_not_connected()
+- notify.wifi_and_server_connected()
+- notify.detected_target()
+- notifi.not_found_target()
+- notify.unregistered_SD_card()
+- 
+'''

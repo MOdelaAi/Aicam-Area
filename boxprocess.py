@@ -8,15 +8,17 @@ from shapely.geometry.point import Point
 from ultralytics.utils.files import increment_path
 from ultralytics.utils.plotting import Annotator, colors
 import os
+import logging
+logger = logging.getLogger(name=__name__)
 class ModelboxProcess():
     
     def __init__(self) -> None:
-        self.model = YOLO("best_ncnn_model",task='detect')
+        self.model = YOLO("model/person_ncnn_model",task='detect')
         self.names = self.model.names
         self.counting_regions = [
         {
-            "name": "YOLOv8 Rectangle Region",
-            "polygon": Polygon([(200, 250), (440, 250), (440, 550), (200, 550)]),  # Polygon points
+            "name": "YOLOv8 Rectangle Region 1",
+            "polygon": Polygon([(103, 99), (496, 99),(496, 403),(103, 403)]),  # Polygon points , มุมซ้ายบน, มุมบนขวา, มุมล่างขวา, มุมล่างซ้าย 
             "counts": 0,
             "dragging": False,
             "region_color": (37, 255, 225),  # BGR Value
@@ -28,15 +30,16 @@ class ModelboxProcess():
         self.line_thickness=2
         self.track_thickness=2
         self.region_thickness=2
-    
+        
     def __call__(self,img) :
-        results = self.model.track(img, save=False, show=False, conf=0.25,persist=True,classes=[0],iou=0.5,verbose=False)
+        img_t = img.copy()
+        results = self.model.track(img_t, save=False, show=False, conf=0.25,persist=True,classes=[0],iou=0.5,verbose=False)
         if results[0].boxes.id is not None:
             boxes = results[0].boxes.xyxy.cpu()
             track_ids = results[0].boxes.id.int().cpu().tolist()
             clss = results[0].boxes.cls.cpu().tolist()
 
-            annotator = Annotator(img, line_width=self.line_thickness, example=str(self.names))
+            annotator = Annotator(img_t, line_width=self.line_thickness, example=str(self.names))
             for box, track_id, cls in zip(boxes, track_ids, clss):
                 annotator.box_label(box, str(self.names[cls]), color=colors(cls, True))
                 bbox_center = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2  # Bbox center
@@ -46,7 +49,7 @@ class ModelboxProcess():
                 if len(track) > 30:
                     track.pop(0)
                 points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
-                cv2.polylines(img, [points], isClosed=False, color=colors(cls, True), thickness=self.track_thickness)
+                cv2.polylines(img_t, [points], isClosed=False, color=colors(cls, True), thickness=self.track_thickness)
 
                 # Check if detection inside region
                 for region in  self.counting_regions :
@@ -69,20 +72,29 @@ class ModelboxProcess():
             text_x = centroid_x - text_size[0] // 2
             text_y = centroid_y + text_size[1] // 2
             cv2.rectangle(
-                img,
+                img_t,
                 (text_x - 5, text_y - text_size[1] - 5),
                 (text_x + text_size[0] + 5, text_y + 5),
                 region_color,
                 -1,
             )
             cv2.putText(
-                img, region_label, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, region_text_color, self.line_thickness
+                img_t, region_label, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, region_text_color, self.line_thickness
             )
-            cv2.polylines(img, [polygon_coords], isClosed=True, color=region_color, thickness=self.region_thickness)
-            
+            cv2.polylines(img_t, [polygon_coords], isClosed=True, color=region_color, thickness=self.region_thickness)
             
         for region in self.counting_regions:  # Reinitialize count for each region
             region["counts"] = 0
-            self.count_person = 0
             
-        return img
+            self.count_person = 0
+        return img_t
+    
+    def update_polygon(self, region_index, new_polygon_points):
+        if 0 <= region_index < len(self.counting_regions): 
+            self.counting_regions[region_index]["polygon"] = Polygon(new_polygon_points)
+            logger.info(f"Updated polygon for region {region_index} to {new_polygon_points}")
+        else:
+            logger.error(f"Region index {region_index} out of range!")
+    
+    def hello_test(self,):
+        print("hello"*10)
