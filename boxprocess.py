@@ -1,35 +1,27 @@
 from ultralytics import YOLO
 from collections import defaultdict
-from pathlib import Path
 import cv2
 import numpy as np
 from shapely.geometry import Polygon
 from shapely.geometry.point import Point
 from ultralytics.utils.files import increment_path
 from ultralytics.utils.plotting import Annotator, colors
-import os
+import json
 import logging
 logger = logging.getLogger(name=__name__)
+
+
 class ModelboxProcess():
     
     def __init__(self) -> None:
         self.model = YOLO("model/person_ncnn_model",task='detect')
         self.names = self.model.names
-        self.counting_regions = [
-        {
-            "name": "YOLOv8 Rectangle Region 1",
-            "polygon": Polygon([(103, 99), (496, 99),(496, 403),(103, 403)]),  # Polygon points , มุมซ้ายบน, มุมบนขวา, มุมล่างขวา, มุมล่างซ้าย 
-            "counts": 0,
-            "dragging": False,
-            "region_color": (37, 255, 225),  # BGR Value
-            "text_color": (0, 0, 0),  # Region Text Color
-        },
-        ]
         self.count_person = 0
         self.track_history = defaultdict(list)
         self.line_thickness=2
         self.track_thickness=2
         self.region_thickness=2
+        # Polygon points , มุมซ้ายบน, มุมบนขวา, มุมล่างขวา, มุมล่างซ้าย 
         
     def __call__(self,img) :
         img_t = img.copy()
@@ -56,7 +48,7 @@ class ModelboxProcess():
                     if region["polygon"].contains(Point((bbox_center[0], bbox_center[1]))):
                         region["counts"] += 1
                         self.count_person = 1
-                        
+
         # Draw regions (Polygons/Rectangles)
         for region in  self.counting_regions :
             region_label = str(region["counts"])
@@ -89,12 +81,27 @@ class ModelboxProcess():
             self.count_person = 0
         return img_t
     
-    def update_polygon(self, region_index, new_polygon_points):
-        if 0 <= region_index < len(self.counting_regions): 
-            self.counting_regions[region_index]["polygon"] = Polygon(new_polygon_points)
-            logger.info(f"Updated polygon for region {region_index} to {new_polygon_points}")
-        else:
-            logger.error(f"Region index {region_index} out of range!")
+    def random_color(self):
+        return (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
     
-    def hello_test(self,):
-        print("hello"*10)
+    def update_polygon(self,data):
+        self.counting_regions = []
+        for item in data:
+            # print([self.convert_coordinates(item)][0])
+            self.counting_regions.append({
+                    "name": f"{item['cropNO']}" ,
+                    "polygon": Polygon([self.convert_coordinates(item)][0]),  
+                    "counts": 0,
+                    "dragging": False,
+                    "region_color": self.random_color(),  # BGR Value
+                    "text_color": (0, 0, 0),  # Region Text Color
+                })
+    
+    def convert_coordinates(self,coord_dict):
+        return [
+            (int(float(coord_dict['topLeft'][0])), int(float(coord_dict['topLeft'][1]))),
+            (int(float(coord_dict['topRight'][0])), int(float(coord_dict['topRight'][1]))),
+            (int(float(coord_dict['bottomRight'][0])), int(float(coord_dict['bottomRight'][1]))),
+            (int(float(coord_dict['bottomLeft'][0])), int(float(coord_dict['bottomLeft'][1])))
+        ]
+

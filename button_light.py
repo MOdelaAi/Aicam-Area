@@ -66,8 +66,8 @@ class LED_Notification:
             fade_out_time = 0,
             on_color = (1,0,0),
             off_color = (0, 0, 0),
-            n = 1,
-            background = False
+            n = None,
+            background = True
             )
         
     # If the SD card has been registered
@@ -83,8 +83,8 @@ class LED_Notification:
             fade_out_time = 0,
             on_color = (0,1,0),
             off_color = (1,0,1),
-            n = 1,
-            background = False
+            n = None,
+            background = True
             )
 
     # The device is processing
@@ -100,8 +100,8 @@ class LED_Notification:
             fade_out_time = 0,
             on_color = (0,1,0),
             off_color = (0, 0, 0),
-            n = 1,
-            background = False
+            n = None,
+            background = True
             )
         
 class outload_Relay():
@@ -192,35 +192,7 @@ class Button_Action:
         except Exception as e:
             print(f"The error is '{e}'.")
 
-# Reset button
-def reset():
-    global BUTTON_PIN
-
-    # Creat the reset button instance
-    btn = Button_Action(BUTTON_PIN)
-
-    # Start the reset button action
-    btn.reset_mode()
     
 if __name__ == '__main__':
-    RED_PIN = 23                # Pin num for red LED
-    GREEN_PIN = 19              # Pin num for yellow LED
-    BLUE_PIN = 4               # Pin num for green LED
-    OUTLOAD = 27
-    BUTTON_PIN = 17             # Pin num for reset button
-    notify = LED_Notification(RED_PIN, GREEN_PIN, BLUE_PIN)
-    cnt = 0
-    while True:
-        outload_Relay.detected_selected()
-  
-
-
-# can use 
-'''
-- notify.wifi_and_server_not_connected()
-- notify.wifi_and_server_connected()
-- notify.detected_target()
-- notifi.not_found_target()
-- notify.unregistered_SD_card()
-- 
-'''
+    '''In this if we used dedug only.'''
+    pass
