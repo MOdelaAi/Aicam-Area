@@ -3,7 +3,6 @@ import os
 import logging
 import asyncio
 import threading
-
 from typing import Any, Dict, Union
 
 from bless import (  # type: ignore
@@ -124,9 +123,9 @@ def run_camera():
     print("qrcode reader is starting")
     # Open the webcam
     cap = cv2.VideoCapture(0)
-
     while True:
         # Capture frame-by-frame
+            
         ret, frame = cap.read()
         if not ret:
             break
@@ -146,7 +145,7 @@ def run_camera():
             ssid = ssid_match.group(1) if ssid_match else None
             password = password_match.group(1) if password_match else None
             key = key_match.group(1) if key_match else None
-            print(ssid,password,key,type(ssid),type(password),type(key))
+            # print(ssid,password,key,type(ssid),type(password),type(key))
             check_list_wifi = os.popen("sudo iwlist wlan0 scan | grep SSID").read()
             if ssid in check_list_wifi:
                 key_config = key
@@ -157,12 +156,15 @@ def run_camera():
                     status = os.popen(f'sudo nmcli dev wifi connect "{ssid}"').read()
                     wifi_config = f"sudo nmcli dev wifi connect \"{ssid}\"".encode('ascii')
                 if 'successfully' in status:
+                    print("write file now")
                     with open("wifi_config.bin", "wb") as file:
                         file.write(wifi_config)
 
                     with open("key_config.bin", "wb") as file:
                         file.write(key_config.encode('ascii'))
                     os._exit(1)
+                print("wifi or password is not correct")
+                continue
 
 def main():
     # สร้าง Thread สำหรับรัน BLE Server

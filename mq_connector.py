@@ -3,6 +3,7 @@ import cv2
 import time
 import json
 import random
+import base64
 import zipfile
 import requests
 from io import BytesIO
@@ -52,8 +53,13 @@ class Mqtt_Connect(mqtt.Client):
         self.peroid_notification_start_time = 0                 # Set period notification start time
         self.state_notification = []                            # Set state of notification once time
         self.notification_sensorDetected  = []                  # select sensor for sending the image to line
+        self.statusSensorOption = []
+        self.statusSensorSelected = []
+        self.notifyStatusSensor = []
+        self.state_StatusSensor = [-1,-1]
         self.Relay = []
         self.RelayAutoMode = []
+        
         # List of sensor main key
         self.sensor_main_key = ["sensorSelected",           # Store sensorNo, sensorSelect, decimal
                              "sensorCalibrate",             # Store sensorNo, sensorCalibrateValue
@@ -87,8 +93,9 @@ class Mqtt_Connect(mqtt.Client):
                                 "/Control/StatusSensorTimerControl",    #21 
                                 "/Control/StatusSensorNotifyMethod",    #22 
                                 "/Control/StatusSensorNotifyInterval",  #23 
-                                "/Control/SensorControl"                #24
-                                
+                                "/Control/SensorControl",               #24
+                                "/Control/RequestImage",                #25
+                                "/Control/SetCrop",                     #26
                                 ]              
         
         # Period notification time options
@@ -118,7 +125,7 @@ class Mqtt_Connect(mqtt.Client):
         
         # Notification interval option
         self.value_notification_options = {"1": 1,          # Once
-                                           "2": 2 * 30,     # Every 2 minutes
+                                           "2": 2 * 30,     # Every 1 minutes
                                            "3": 10 * 60,    # Every 10 minutes
                                            "4": 15 * 60,    # Every 15 minutes
                                            "5": 30 * 60,    # Every 30 minutes
@@ -136,6 +143,7 @@ class Mqtt_Connect(mqtt.Client):
         
         # API url
         url = f"https://{self.api_server}/api/v2/deviceSetting/{self.device_key}/"
+        # url = f"http://192.168.100.97:8080/api/v2/deviceSetting/{self.device_key}/"
         headers = {'Authorization': self.api_key}
         
         # Get current setting
@@ -186,9 +194,31 @@ class Mqtt_Connect(mqtt.Client):
                     continue
             
             self.Relay = [False,False] if len(response['switchRelay']) == 0 else response['switchRelay']
+            if len(self.Relay) <2:
+                self.Relay.append(False)
+                
             self.RelayAutoMode = [{'relayNo': 1, 'relayAutoMode': 0}, {'relayNo': 2, 'relayAutoMode': 0}] if len(response['relayAutoMode']) == 0 else response['relayAutoMode']
+            if len(self.RelayAutoMode) <2:
+                if self.RelayAutoMode[0]['relayNo'] == 1:
+                    self.RelayAutoMode.append({'relayNo': 2, 'relayAutoMode': 0})
+                else:
+                    self.RelayAutoMode.append({'relayNo': 1, 'relayAutoMode': 0})
+                    
             for item in self.RelayAutoMode :
                 item['relayAutoMode'] = bool(item['relayAutoMode'])
+            
+            self.notifyStatusSensor = response['notifyStatusSensor']
+            self.statusSensorOption = response['statusSensorOption']
+            self.statusSensorSelected = response['statusSensorSelected']
+            self.statusTimerControl = response['statusTimerControl']
+            self.state_notification_status = ["normal" for i in range(2)]
+            for notify in self.notifyStatusSensor:
+                if  len(notify['notifyMethod'])!= 0:
+                    notify['notificationStartTime'] = time.time()
+                else:
+                    notify['notificationStartTime'] = 0 
+            
+            self.cropCoordinates = response['cropCoordinates']
             
         url_line_token = f"https://{self.api_server}/api/v2/device/linetoken/{self.device_key}"
         
@@ -292,20 +322,21 @@ class Mqtt_Connect(mqtt.Client):
             
         elif message.topic == self.device_key + self.subscribe_topics[12]:          # OTA UPDATE
             self.update_ota()
-            
+    
         elif message.topic == self.device_key + self.subscribe_topics[13]:          # Time set up
             self.current_setting[data['sensorNo'] - 1]['timerControlStatus'] = data['timerControlStatus']
             self.current_setting[data['sensorNo'] - 1]['timerControlBeginHour'] = data['timerControlBeginHour']
             self.current_setting[data['sensorNo'] - 1]['timerControlBeginMinute'] = data['timerControlBeginMinute']
             self.current_setting[data['sensorNo'] - 1]['timerControlEndHour'] = data['timerControlEndHour']
             self.current_setting[data['sensorNo'] - 1]['timerControlEndMinute'] = data['timerControlEndMinute']
-        
+    
         elif message.topic == self.device_key + self.subscribe_topics[14]:          # Time set up
             self.notification_sensorDetected = data['sensorDetected']
     
         elif message.topic == self.device_key + self.subscribe_topics[15]: #Relay
             self.Relay[data['switchRelay']-1] = data['statusRelay']
-            self.publish(self.device_key+'/ControlRelayMode',json.dumps({'key': self.device_key,
+            self.publish(self.device_key+'/ControlRelayMode',
+                         json.dumps({'key': self.device_key,
                                     'controlModeNo': data['switchRelay'],
                                     'controlModeStatus': 0}),
                         qos=2, 
@@ -315,15 +346,57 @@ class Mqtt_Connect(mqtt.Client):
            
         elif message.topic == self.device_key + self.subscribe_topics[16]: #RelayAutoMode
             self.RelayAutoMode[data['relayNO']-1] = data
+ 
+        elif message.topic == self.device_key + self.subscribe_topics[17]: #/Control/StatusSensor
+            self.statusSensorSelected[data['statusSensorNo']-1] = data
+            if data['statusSensorSelect'] == 0:
+                self.publish(self.device_key +'/ValueStatusSensor',
+                            json.dumps({"key":self.device_key,
+                                        "statusNo":data['statusSensorNo'],
+                                        "statusData":0})
+                            ,qos=2
+                            ,retain=False)
+                self.state_notification_status[data['statusSensorNo']-1] = "normal"
+                  
         
-        elif message.topic == self.device_key + self.subscribe_topics[23]: #RelayAutoMode
+        elif message.topic == self.device_key + self.subscribe_topics[18]: #/Control/StatusSensorOption
+            self.statusSensorOption[data['statusSensorNo']-1]['statusSensorOption'] = data['statusSensorOption']
+        
+        elif message.topic == self.device_key + self.subscribe_topics[19]: #/Control/StatusSensorControl
+            self.statusSensorOption[data['statusSensorNo']-1]['statusSensorControl'] = data['statusSensorControl']
+        
+        elif message.topic == self.device_key + self.subscribe_topics[20]: #/Control/StatusSensorTimerControl
+            self.statusTimerControl[data['statusSensorNo'] - 1]['timerControlStatus'] = data['timerControlStatus']
+            self.statusTimerControl[data['statusSensorNo'] - 1]['timerControlBeginHour'] = data['timerControlBeginHour']
+            self.statusTimerControl[data['statusSensorNo'] - 1]['timerControlBeginMinute'] = data['timerControlBeginMinute']
+            self.statusTimerControl[data['statusSensorNo'] - 1]['timerControlEndHour'] = data['timerControlEndHour']
+            self.statusTimerControl[data['statusSensorNo'] - 1]['timerControlEndMinute'] = data['timerControlEndMinute']
+        
+        elif message.topic == self.device_key + self.subscribe_topics[21]: #/Control/StatusSensorNotifyMethod
+            self.notifyStatusSensor[data['statusSensorNo']-1]['notifyMethod'] = data['notifyMethod']
+        
+        elif message.topic == self.device_key + self.subscribe_topics[22]: #/Control/StatusSensorNotifyInterval
+            self.notifyStatusSensor[data['statusSensorNo']-1]['notifyInterval'] = data['notifyInterval']
+        
+        elif message.topic == self.device_key + self.subscribe_topics[23]: #
             self.current_setting[data['sensorNO']-1]['sensorControl'] = data['sensorControl']
         
-    # def on_publish(self, mqttc, obj, mid, reason_codes, properties):
-    #     print(f"Message published with MID: {mid}")
-
-    # def on_subscribe(self, mqttc, obj, mid, reason_code_list, properties):
-    #     print(f"Subscribed with MID: {mid}, Reason Codes: {reason_code_list}")
+        elif message.topic == self.device_key + self.subscribe_topics[24]: #
+            img = self.camera.read_frame()
+            try:
+                img = cv2.resize(img, (640, 480))
+                _, buffer = cv2.imencode('.jpg', img)
+                
+                image_as_bytes = buffer.tobytes()
+                image_as_base64 = base64.b64encode(image_as_bytes).decode('utf-8')
+                self.publish(self.device_key+"/ImageResponse",payload=f"{image_as_base64}",qos=2,retain=False)
+            except:
+                pass
+            
+        elif message.topic == self.device_key + self.subscribe_topics[25]: #
+            self.model_box.update_polygon(data['crops'])
+            self.cropCoordinates = data['crops']
+            print("write now")
         
     def on_disconnect(self, client, userdata, connect_flags, reason_code, properties):
         self.connect_flag = True
@@ -399,8 +472,8 @@ class Mqtt_Connect(mqtt.Client):
                 valuesList.append(0)
             except Exception as e:
                 continue
-       
-        for i in range(self.number_of_sensor_value):
+        # print(self.current_setting)
+        for i in range(3):
             sensorNo = self.current_setting[i]['sensorNo']
             sensorSelect = self.current_setting[i]['sensorSelect']
             if sensorSelect != 0:
@@ -411,11 +484,21 @@ class Mqtt_Connect(mqtt.Client):
     def control_switch(self,from_switch,relayNo):
         for item in from_switch:
             if self.RelayAutoMode[item-1]['relayAutoMode'] is True:
-                self.publish(self.device_key+'/ControlRelay',json.dumps({'key': self.device_key,
+                
+                if relayNo == 1:
+                    self.Relay[item-1] = True
+                    outload_Relay.detected_selected()
+                else:
+                    self.Relay[item-1] = False
+                    outload_Relay.not_detected_selected()
+                    
+                self.publish(self.device_key+'/ControlRelay'
+                             ,json.dumps({'key': self.device_key,
                                             'relayNo': item,
                                             'relayStatus': relayNo}),
-                                qos=2, 
-                                retain=False)
+                             qos=2,
+                             retain=False)
+                
 
     def control_low_hight(self,option:int,sensorControl:list,actual_value:float, value_low_limit:float, value_high_limit:float):
                     
@@ -452,10 +535,41 @@ class Mqtt_Connect(mqtt.Client):
                     self.control_switch(sensorControl,0)
             case _:
                     print("No case")
-    
-            
-    
-    def send_notification(self, image,valuesList:list,img_by_sensordetected=None):
+                    
+    def control_sensor_option(self,option, detected_sensor, control_switch):
+        if option == 1:  # On when detected / Off when not detected
+            if detected_sensor == 0:
+                self.control_switch(control_switch, 0)
+            else:
+                self.control_switch(control_switch, 1)
+        elif option == 2:  # Off when detected / On when not detected
+            if detected_sensor == 0:
+                self.control_switch(control_switch, 1)
+            else:
+                self.control_switch(control_switch, 0)
+        elif option == 3:  # Open when detected
+            if detected_sensor == 1:
+                self.control_switch(control_switch, 1)
+        elif option == 4:  # Close when not detected
+            if detected_sensor == 0:
+                self.control_switch(control_switch, 0)
+        elif option == 5:  # Open when not detected
+            if detected_sensor == 0:
+                self.control_switch(control_switch, 1)
+        elif option == 6:  # Close when detected
+            if detected_sensor == 1:
+                self.control_switch(control_switch, 0)
+
+    def send_status(self,key,statusData):
+        for index_statusNo in range(len(statusData)):
+            self.publish(key +'/ValueStatusSensor',
+                            json.dumps({"key":key,
+                                        "statusNo":index_statusNo+1,
+                                        "statusData":statusData[index_statusNo]})
+                            ,qos=2
+                            ,retain=False)
+        
+    def send_notification(self, image,valuesList:list,img_by_sensordetected=None,detectd_sensor=None):
         
         notify_url = 'https://notify-api.line.me/api/notify'            # Line notification URL
         LINE_HEADERS = {'Authorization':'Bearer ' + self.line_token}    # Line notification header 
@@ -473,14 +587,14 @@ class Mqtt_Connect(mqtt.Client):
                 }
             
             return json.dumps(text)
-        
+
         def comparison(actual_value:float, value_low_limit:float, value_high_limit:float)->str:
         
             if actual_value > value_high_limit:
                 return "high"
             elif actual_value < value_low_limit:
-                return "low"
-            
+                return "low"    
+        
         def is_time_in_range(start, end, current):
             if start < end:
                 return start <= current <= end
@@ -491,13 +605,11 @@ class Mqtt_Connect(mqtt.Client):
         def send_notification(key,type_senser,valueNo,valueSelected,valueData,status):
             print("send notification right now")
             wifi = DeviceCare.Map_value(-105,-50,0,100)
-            logger.debug(f"check type {type_senser}, from valueNo: {valueNo}")
             for type in type_senser:
                 self.publish(self.device_key +'/ValueSensorNotify',to_json(key,type,valueNo,valueSelected,valueData,status,wifi),qos=2, retain=False)
-    
-        
+
         for value_sensor in self.current_setting:
-            if value_sensor['sensorSelect'] - 1 < 0:
+            if value_sensor['sensorSelect'] - 1 < 0 or value_sensor['sensorSelect'] > 4:
                 continue
             type_senser = value_sensor['notifyMethod']
             INDEX = value_sensor['sensorSelect'] - 1
@@ -535,7 +647,59 @@ class Mqtt_Connect(mqtt.Client):
                             
                 elif value_sensor["timerControlStatus"] == 0:
                         self.control_low_hight(option,sensorControl,valueData,value_sensor['sensorValueLowLimit'],value_sensor['sensorValueHighLimit'])
-
+                        
+        
+        #---------------------------------------new---------------------------------------#
+        if detectd_sensor is not None:
+            if self.state_StatusSensor != detectd_sensor:
+                self.send_status(self.device_key,detectd_sensor)
+                self.state_StatusSensor = detectd_sensor
+                
+            for valueoption,valueselected,valueStatusSensor,valueTimerControl in zip(self.statusSensorOption,self.statusSensorSelected,self.notifyStatusSensor,self.statusTimerControl):
+                selected = valueselected['statusSensorSelect']
+                Index = valueoption['statusSensorNo']
+                if selected != 0:
+                    control_switch = valueoption['statusSensorControl']
+                    option = valueoption['statusSensorOption']
+                    
+                    notifyMethod = valueStatusSensor['notifyMethod']
+                    notifyInterval = valueStatusSensor['notifyInterval']
+                    
+                    status_time = valueTimerControl['timerControlStatus']
+                    timerControlBeginHour = valueTimerControl['timerControlBeginHour'][0]
+                    timerControlBeginMinute = valueTimerControl['timerControlBeginMinute'][0]
+                    timerControlEndHour = valueTimerControl['timerControlEndHour'][0]
+                    timerControlEndMinute = valueTimerControl['timerControlEndMinute'][0]
+                    result =  1 if detectd_sensor[Index-1] == True else 0
+                    
+                    if len(notifyMethod) != 0:
+                        if notifyInterval == 1: # Interval 1 ส่ง 1 ครั้ง
+                            text =  "high" if detectd_sensor[Index-1] == True else "low"
+                            if self.state_notification_status[Index-1] != text and text =='high':
+                                send_notification(self.device_key,notifyMethod,Index,selected,result,text)
+                                self.state_notification_status[Index-1]  = "high"
+                                
+                            elif self.state_notification_status[Index-1]  != text and text =='low':
+                                send_notification(self.device_key,notifyMethod,Index,selected,result,text)
+                                self.state_notification_status[Index-1]  = "low"
+                        
+                        else:  # Interval etc.
+                            if time.time() - valueStatusSensor['notificationStartTime'] >= self.value_notification_options[str(notifyInterval)]:
+                                text =  "high" if detectd_sensor[Index-1] == True else "low"
+                                send_notification(self.device_key,notifyMethod,Index,selected,result,text)
+                                valueStatusSensor['notificationStartTime'] = time.time()
+                    
+                    if status_time == 1:
+                        start_time = _time(timerControlBeginHour, timerControlBeginMinute)  # set start time
+                        end_time = _time(timerControlEndHour, timerControlEndMinute)   # set end time
+                        current_time = datetime.now().time()
+                        if is_time_in_range(start_time,end_time,current_time):
+                            self.control_sensor_option(option, detectd_sensor[Index-1], control_switch)
+                    
+                    elif status_time == 0:
+                        self.control_sensor_option(option, detectd_sensor[Index-1], control_switch) 
+        #---------------------------------------end---------------------------------------#
+        
         # Take a Photo Send to Line
         image_set = image if img_by_sensordetected is None else img_by_sensordetected
         _, buffer = cv2.imencode('.jpg', image_set)
@@ -547,39 +711,30 @@ class Mqtt_Connect(mqtt.Client):
             self.is_capture = False
             
         if self.period_notification_status and self.period_notification_option != 0:
+            print(time.time() - self.peroid_notification_start_time," ",float(self.period_time_options[str(self.period_notification_option)]))
             if time.time() - self.peroid_notification_start_time >= float(self.period_time_options[str(self.period_notification_option)]):
                 requests.post(notify_url, headers=LINE_HEADERS, files={'imageFile': ('notice.jpg', image_file, 'image/jpeg')}, data= {'message': 'Period notification'})
                 self.peroid_notification_start_time = time.time()
     
-    def set_the_modelbox(self,model):
-        self.box_model = model
-        self.box_model.hello_test()
-        logger.debug("successfully set the box model")
-        
     def get_sensorDetected(self):
-        return self.notification_sensorDetected
-     
+        sensorselect = [item['statusSensorSelect'] for item in self.statusSensorSelected]
+        return self.notification_sensorDetected,sensorselect
+    
+    def get_relayswitch(self):
+        reley_swich = [item['relayStatus'] for item in self.Relay]
+        print(reley_swich)
+        return reley_swich
+    
+    def set_box_model(self,model):
+        self.model_box = model
+        print("set model")
+        
+    def set_camera(self,camera):
+        self.camera = camera
+        
     def get_connect_flag(self):
         return self.connect_flag
 
-if __name__ == '__main__':
-    mqtt_pocker = Mqtt_Connect('6003', '1.0.0')
-    time.sleep(5)
-    mqtt_pocker.set_current_setting()
-    state = 4
-    counter_reboot = 0
-    time.sleep(5)
-    
-    result = [0 for i in range(12)] # clear value of device
-    while True:
+    def get_cropCoordinates(self):
+        return self.cropCoordinates
         
-        while mqtt_pocker.get_connect_flag() is True :
-            No_connection = True
-            logger.warning("Wait for connection")
-            counter_reboot +=1
-            if counter_reboot ==48 :
-                DeviceCare.reboot_device()
-                
-            time.sleep(5)
-        mqtt_pocker.client_publish(result)
-        time.sleep(5)
