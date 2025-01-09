@@ -5,7 +5,7 @@ import os
 import time
 import socket
 import logging
-
+import yaml
 
 ROOT = os.path.dirname(__file__)
 logging.basicConfig(level=logging.DEBUG,
@@ -36,15 +36,13 @@ class DeviceCare:
     
     
     def wifi_connection_again()->bool:
-        with open(f"{ROOT}/wifi_config.bin", "rb") as file:
-            wifi_config = file.read().decode('ascii')
-        start_index = wifi_config.find('connect "') + len('connect "')
-        end_index = wifi_config.find('"', start_index)
-
-        wifi_name = wifi_config[start_index:end_index]
+        with open("config.yaml", "r") as file:
+            data = yaml.safe_load(file) 
+        data = data['Device']
+        
         check_list_wifi = os.popen("sudo iwlist wlan0 scan | grep SSID").read()
-        if wifi_name in check_list_wifi:
-            status = os.popen(wifi_config).read()
+        if data['SSID'] in check_list_wifi:
+            status = status = os.popen(f"sudo nmcli dev wifi connect '{data['SSID']}' password '{data['password']}'").read()
             if 'successfully' in status:
                 return True
              
@@ -105,4 +103,5 @@ class DeviceCare:
 
 if __name__ == '__main__':
     # DeviceCare.check_wifi_connection()
+    print("hello world!")
     pass

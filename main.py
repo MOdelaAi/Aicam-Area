@@ -12,6 +12,7 @@ import queue
 import numpy as np
 import pandas as pd
 from threading import Thread,Event
+import yaml
 import logging
 from ultralytics import YOLO,solutions
 import subprocess
@@ -124,32 +125,34 @@ web_host = Thread(target=web_hosting,daemon=True).start() # streaming server
 
 # Does the regist.bin exist?
     
-if "regist.bin" in os.listdir():
+if "config.yaml" in os.listdir():
     
     # Get the ip from current device
     current_serial = get_serial()
 
-    # Get the stored ip from regist.bin
-    with open('regist.bin', 'rb') as file:
-        correct_serial = file.read().decode('ascii')
-        file.close()
+    with open("config.yaml", "r") as file:
+        config = yaml.safe_load(file)
 
+    device = config['Device']
+    unlock_device = config['Unlock-Device']
     # If the ip in regist.bin is the same as the current device
-    if  correct_serial == current_serial:
-        
-        if "wifi_config.bin" not in os.listdir() and "key_config.bin" not in os.listdir():
+    if  device['key_device'] == current_serial:
+        if device['wifi']['status'] != True and device['key_from_server'] == None:
             # The light notification for device connecting
             state_queue.put(1)
-            subprocess.run(["python3", "connection.py"])
+            os.system("python3 connection.py")
             state_queue.put(2)
             gc.collect()
             
         if DeviceCare.check_wifi_and_internet_connection():
             logger.info("connection wifi")
+            with open("config.yaml", "r") as file:
+                config = yaml.safe_load(file)
+            device = config['Device']
             try:
                 # Main process is here
                 camera = CameraConnection(WIDTH,HEIGHT)
-                mqtt = Mqtt_Connect('6003', '1.0.0')
+                mqtt = Mqtt_Connect(device['type'], device['version'],device['key_from_server'])
                 mqtt.set_current_setting()
                 mqtt_queue.put(mqtt)
                 

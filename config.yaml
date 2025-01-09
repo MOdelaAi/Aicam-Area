@@ -1,0 +1,12 @@
+Device:
+  key_device: ''
+  key_from_server: ''
+  type: '6003'
+  version: 1.0.0
+  wifi:
+    SSID: ''
+    password: ''
+    status: false
+Unlock-Device:
+- a7a52ebace42e4b0
+- 776378273a99abf2

@@ -3,6 +3,7 @@ import cv2
 import time
 import json
 import random
+import yaml
 import base64
 import zipfile
 import requests
@@ -27,13 +28,21 @@ def get_serial() -> str|None:
         return None
     
 class Mqtt_Connect(mqtt.Client):
-    def __init__(self, device_id: str, device_version: str):
-        with open("key_config.bin", "rb") as file:
-            self.device_key = file.read().decode('ascii')
+    def __init__(self, device_id: str, device_version: str,device_key:str):
         
-        super().__init__(client_id = self.device_key,callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
+        super().__init__(client_id = device_key,callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
         logger.info(f"Device ID: {device_id}, Device Version: {device_version}")
+        with open("config.yaml", "r") as file:
+            data = yaml.safe_load(file) 
+        data = data['Device']
         
+        self.key_device = data['key_device']
+        self.key_from_server = data['key_from_server']
+        self.wifi_status = data['wifi']['status']
+        self.wifi_ssid = data['wifi']['SSID']
+        self.wifi_password = data['wifi']['password']
+        
+        self.device_key = device_key
         # Declare server connection variables
         self.broker_address = os.getenv('BROKER')   # Set broker address: Server Connection
         self.api_server = os.getenv('APISERVER')   # Set API address: Server Connection
@@ -431,6 +440,17 @@ class Mqtt_Connect(mqtt.Client):
                 print(f"File extracted successfully to: {ROOT}")
             os.remove('downloaded_file.zip')
             logger.info("The device will reboot in 6 seconds . . . !")
+            with open("config.yaml", "r") as file:
+                data = yaml.safe_load(file)  
+            info = data['Device']
+            info['key_device'] = self.key_device
+            info['key_from_server'] = self.key_from_server
+            info['wifi']['status'] = self.wifi_status
+            info['wifi']['SSID'] = self.wifi_ssid
+            info['wifi']['password'] = self.wifi_password
+            
+            with open("config.yaml", "w") as file:
+                yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
             time.sleep(6)
             os.system('sudo reboot')
 

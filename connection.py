@@ -4,14 +4,14 @@ import logging
 import asyncio
 import threading
 from typing import Any, Dict, Union
-
+from camera import CameraConnection
 from bless import (  # type: ignore
     BlessServer,
     BlessGATTCharacteristic,
     GATTCharacteristicProperties,
     GATTAttributePermissions,
 )
-
+import yaml
 logger = logging.getLogger(name=__name__)
 
 trigger: Union[asyncio.Event, threading.Event]
@@ -38,18 +38,22 @@ def write_request(characteristic: BlessGATTCharacteristic, value: Any, **kwargs)
             key_config = value[2][4:].encode('ascii')
             if len(wifi_password) != 0:
                 status = os.popen(f'sudo nmcli dev wifi connect "{value[0][5:]}" password "{value[1][9:]}"').read()
-                wifi_config = f"sudo nmcli dev wifi connect \"{value[0][5:]}\" password \"{value[1][9:]}\"".encode('ascii')
             else:
                 status = os.popen(f'sudo nmcli dev wifi connect "{value[0][5:]}"').read()
-                wifi_config = f"sudo nmcli dev wifi connect \"{value[0][5:]}\"".encode('ascii')
                 
             if 'successfully' in status:
-                with open("wifi_config.bin", "wb") as file:
-                    file.write(wifi_config)
-
-                with open("key_config.bin", "wb") as file:
-                    file.write(key_config)
-
+                with open("config.yaml", "r") as file:
+                    data = yaml.safe_load(file)
+                info = data['Device']
+                
+                info['key_from_server'] = key_config.decode('utf-8')
+                info['wifi']['status'] = True
+                info['wifi']['SSID'] = ssid
+                info['wifi']['password'] = wifi_password if len(wifi_password)!=0 else None
+                
+                with open("config.yaml", "w") as file:
+                    yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
+                    
                 logger.debug("write file now")
                 trigger.set()
                 os._exit(1)
@@ -122,17 +126,17 @@ def run_camera():
     from pyzbar.pyzbar import decode
     print("qrcode reader is starting")
     # Open the webcam
-    cap = cv2.VideoCapture(0)
+    
+    camera = CameraConnection()
     while True:
         # Capture frame-by-frame
             
-        ret, frame = cap.read()
-        if not ret:
-            break
+        frame = camera.read_frame()
+        if frame is None:
+            continue
 
         # Decode QR codes in the frame
         decoded_objects = decode(frame)
-        # print(decoded_objects)
         for obj in decoded_objects:
             
             data = obj.data.decode('utf-8')
@@ -151,17 +155,21 @@ def run_camera():
                 key_config = key
                 if len(password) != 0:
                     status = os.popen(f'sudo nmcli dev wifi connect "{ssid}" password "{password}"').read()
-                    wifi_config = f"sudo nmcli dev wifi connect \"{ssid}\" password \"{password}\"".encode('ascii')
+                    
                 else:
                     status = os.popen(f'sudo nmcli dev wifi connect "{ssid}"').read()
-                    wifi_config = f"sudo nmcli dev wifi connect \"{ssid}\"".encode('ascii')
                 if 'successfully' in status:
-                    print("write file now")
-                    with open("wifi_config.bin", "wb") as file:
-                        file.write(wifi_config)
-
-                    with open("key_config.bin", "wb") as file:
-                        file.write(key_config.encode('ascii'))
+                    with open("config.yaml", "r") as file:
+                        data = yaml.safe_load(file)
+                    info = data['Device']
+                    
+                    info['key_from_server'] = key_config
+                    info['wifi']['status'] = True
+                    info['wifi']['SSID'] = ssid
+                    info['wifi']['password'] = password if len(password)!=0 else None
+                    with open("config.yaml", "w") as file:
+                        yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
+                        
                     os._exit(1)
                 print("wifi or password is not correct")
                 continue
