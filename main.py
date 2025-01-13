@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from threading import Thread,Event
 import yaml
+import sys
 import logging
 from ultralytics import YOLO,solutions
 import subprocess
@@ -209,12 +210,17 @@ if "config.yaml" in os.listdir():
                 mqtt.loop_stop()
                 mqtt.disconnect()
                 print(f"The error is: {e}")
-                # DeviceCare.reboot_device()
+                DeviceCare.reboot_device()
 
     else:
         # The light notification for copied device/wrong SD
         # in the future the condition will be checked by api for open raspberry pi 
         state_queue.put(-1)
+        time.sleep(5)
+        for key_id in unlock_device:
+            if key_id == current_serial:
+                sys.exit()
+                
         logger.error("The device is not correct!")
         time.sleep(10)
         DeviceCare.reboot_device()

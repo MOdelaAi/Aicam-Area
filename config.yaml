@@ -1,12 +1,12 @@
 Device:
-  key_device: ''
-  key_from_server: ''
+  key_device: 776378273a99abf2
+  key_from_server: 7lNcBrESfYCnD1dWcHvC
   type: '6003'
   version: 1.0.0
   wifi:
-    SSID: ''
-    password: ''
-    status: false
+    SSID: JOJO_2G
+    password: jojo2550
+    status: true
 Unlock-Device:
 - a7a52ebace42e4b0
 - 776378273a99abf2

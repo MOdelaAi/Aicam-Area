@@ -152,7 +152,6 @@ class Mqtt_Connect(mqtt.Client):
         
         # API url
         url = f"https://{self.api_server}/api/v2/deviceSetting/{self.device_key}/"
-        # url = f"http://192.168.100.97:8080/api/v2/deviceSetting/{self.device_key}/"
         headers = {'Authorization': self.api_key}
         
         # Get current setting
@@ -339,20 +338,34 @@ class Mqtt_Connect(mqtt.Client):
             self.current_setting[data['sensorNo'] - 1]['timerControlEndHour'] = data['timerControlEndHour']
             self.current_setting[data['sensorNo'] - 1]['timerControlEndMinute'] = data['timerControlEndMinute']
     
-        elif message.topic == self.device_key + self.subscribe_topics[14]:          # Time set up
+        elif message.topic == self.device_key + self.subscribe_topics[14]: #Time set up
             self.notification_sensorDetected = data['sensorDetected']
     
         elif message.topic == self.device_key + self.subscribe_topics[15]: #Relay
             self.Relay[data['switchRelay']-1] = data['statusRelay']
-            self.publish(self.device_key+'/ControlRelayMode',
-                         json.dumps({'key': self.device_key,
+            self.publish(self.device_key+'/ControlRelayMode',json.dumps({'key': self.device_key,
                                     'controlModeNo': data['switchRelay'],
                                     'controlModeStatus': 0}),
                         qos=2, 
                         retain=False)
+            
+            relayStatus = 0
+            if data['statusRelay'] == True:
+                relayStatus = 1
+
+            self.publish(self.device_key+'/ControlRelay',json.dumps({'key': self.device_key,
+                                            'relayNo': data['switchRelay'],
+                                            'relayStatus':relayStatus}),
+                        qos=2, 
+                        retain=False)
+            
             self.RelayAutoMode[data['switchRelay']-1]['relayAutoMode'] = False
-            outload_Relay.detected_selected() if self.Relay[data['switchRelay']-1] == True else outload_Relay.not_detected_selected()
-           
+
+            if self.Relay[data['switchRelay']-1] == True:
+                outload_Relay.detected_selected()
+            else:
+                outload_Relay.not_detected_selected()
+
         elif message.topic == self.device_key + self.subscribe_topics[16]: #RelayAutoMode
             self.RelayAutoMode[data['relayNO']-1] = data
  
@@ -411,52 +424,57 @@ class Mqtt_Connect(mqtt.Client):
         self.connect_flag = True
         logger.warning("disconnected OK")
  
-    def update_ota(self,) -> None:
+    def update_ota(self,option = False,url = None) -> None:
         ROOT = os.path.dirname(__file__)
         
         # Disable only the specific warning
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        file_url = 'https://updatego.modela.co.th/testpi/download.zip'
+        file_url = 'https://updatego.modela.co.th/update_aicam/AiCam-Life.zip'
+        if option == True:
+            file_url = url
+        
 
         local_file = 'downloaded_file.zip'
 
         response = requests.get(file_url, stream=True,verify=False)
-
-        if response.status_code == 200:
-                # Open the local file in binary write mode
-                with open(local_file, 'wb') as file:
-                    # Write the content of the response to the file
-                    for chunk in response.iter_content(chunk_size=8192):
-                        file.write(chunk)
-                logger.info(f"File downloaded successfully: {local_file}")
-        else:
-            logger.error(f"Failed to download file. Status code: {response.status_code}")
-
-        if local_file.endswith('.zip'):
-            with zipfile.ZipFile(local_file, 'r') as zip_ref:
-                # Extract all the contents to the specified folder
-                zip_ref.extractall(ROOT)
-                print(f"File extracted successfully to: {ROOT}")
-            os.remove('downloaded_file.zip')
-            logger.info("The device will reboot in 6 seconds . . . !")
-            with open("config.yaml", "r") as file:
-                data = yaml.safe_load(file)  
-            info = data['Device']
-            info['key_device'] = self.key_device
-            info['key_from_server'] = self.key_from_server
-            info['wifi']['status'] = self.wifi_status
-            info['wifi']['SSID'] = self.wifi_ssid
-            info['wifi']['password'] = self.wifi_password
             
-            with open("config.yaml", "w") as file:
-                yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
-            time.sleep(6)
-            os.system('sudo reboot')
+        try: 
+            if response.status_code == 200:
+                    # Open the local file in binary write mode
+                    with open(local_file, 'wb') as file:
+                        # Write the content of the response to the file
+                        for chunk in response.iter_content(chunk_size=8192):
+                            file.write(chunk)
+                    logger.info(f"File downloaded successfully: {local_file}")
+            else:
+                logger.error(f"Failed to download file. Status code: {response.status_code}")
 
-    
-        else:
-            logger.warning("The downloaded file is not a ZIP file. No extraction performed.")
+            if local_file.endswith('.zip'):
+                with zipfile.ZipFile(local_file, 'r') as zip_ref:
+                    # Extract all the contents to the specified folder
+                    zip_ref.extractall(ROOT)
+                    print(f"File extracted successfully to: {ROOT}")
+                os.remove('downloaded_file.zip')
+                logger.info("The device will reboot in 6 seconds . . . !")
+                with open("config.yaml", "r") as file:
+                    data = yaml.safe_load(file)  
+                info = data['Device']
+                info['key_device'] = self.key_device
+                info['key_from_server'] = self.key_from_server
+                info['wifi']['status'] = self.wifi_status
+                info['wifi']['SSID'] = self.wifi_ssid
+                info['wifi']['password'] = self.wifi_password
+                
+                with open("config.yaml", "w") as file:
+                    yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
+                time.sleep(6)
+                os.system('sudo reboot')
+        
+            else:
+                logger.warning("The downloaded file is not a ZIP file. No extraction performed.")
+        except:
+            print("error")
     
     # Create state and return in json form
     @staticmethod
@@ -696,17 +714,17 @@ class Mqtt_Connect(mqtt.Client):
                         if notifyInterval == 1: # Interval 1 ส่ง 1 ครั้ง
                             text =  "high" if detectd_sensor[Index-1] == True else "low"
                             if self.state_notification_status[Index-1] != text and text =='high':
-                                send_notification(self.device_key,notifyMethod,Index,selected,result,text)
+                                send_notification(self.device_key,notifyMethod,Index,selected,detectd_sensor[Index-1],text)
                                 self.state_notification_status[Index-1]  = "high"
                                 
                             elif self.state_notification_status[Index-1]  != text and text =='low':
-                                send_notification(self.device_key,notifyMethod,Index,selected,result,text)
+                                send_notification(self.device_key,notifyMethod,Index,selected,detectd_sensor[Index-1],text)
                                 self.state_notification_status[Index-1]  = "low"
                         
                         else:  # Interval etc.
                             if time.time() - valueStatusSensor['notificationStartTime'] >= self.value_notification_options[str(notifyInterval)]:
                                 text =  "high" if detectd_sensor[Index-1] == True else "low"
-                                send_notification(self.device_key,notifyMethod,Index,selected,result,text)
+                                send_notification(self.device_key,notifyMethod,Index,selected,detectd_sensor[Index-1],text)
                                 valueStatusSensor['notificationStartTime'] = time.time()
                     
                     if status_time == 1:
@@ -739,11 +757,6 @@ class Mqtt_Connect(mqtt.Client):
     def get_sensorDetected(self):
         sensorselect = [item['statusSensorSelect'] for item in self.statusSensorSelected]
         return self.notification_sensorDetected,sensorselect
-    
-    def get_relayswitch(self):
-        reley_swich = [item['relayStatus'] for item in self.Relay]
-        print(reley_swich)
-        return reley_swich
     
     def set_box_model(self,model):
         self.model_box = model
