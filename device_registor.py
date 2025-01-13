@@ -5,7 +5,7 @@ registered_ip = get_serial().encode('ascii')
 
 data = {
     'Device':{
-        'type': '6003',
+        'type': '6004',
         'version': '1.0.0',
         'key_device': registered_ip.decode('utf-8'),
         'key_from_server': None,
