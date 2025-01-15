@@ -3,6 +3,7 @@ import time
 import os
 import subprocess
 import re
+import yaml
 # Nofication through RGB LED
 class LED_Notification:
     # Class construction
@@ -160,10 +161,16 @@ class Button_Action:
             self.held_duration = time.time() - self.press_time
             if self.held_duration > self.hold_duration:
                 
-                file_remove = ['notice.jpg','wifi_config.bin','key_config.bin']
-                for i in file_remove:
-                    if os.path.isfile(i):
-                        os.remove(i)
+                with open("config.yaml", "r") as file:
+                    data = yaml.safe_load(file)  
+                info = data['Device']
+                info['key_from_server'] = ''
+                info['wifi']['status'] = False
+                info['wifi']['SSID'] = None
+                info['wifi']['password'] = None
+                
+                with open("config.yaml", "w") as file:
+                    yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
                     
                 target = os.popen("nmcli -t -f TYPE,UUID,NAME con").read()
 
