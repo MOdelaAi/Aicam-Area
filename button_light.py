@@ -120,7 +120,7 @@ class Button_Action:
     def __init__(self, btn_pin:int) -> None:
         self.btn = Button(btn_pin)
         self.press_time = 0
-        self.hold_duration = 10
+        self.hold_duration = 6
         self.held_duration = 0
         
         self.double_press_interval = 0.5
@@ -151,7 +151,7 @@ class Button_Action:
     def get_held_duration(self) -> int|None:
         return self.held_duration
 
-    # The button has been pressed for 4 seconds
+    # The button has been pressed for 6 seconds
     def reset_mode(self) -> bool:
              
         def button_pressed_action():
@@ -164,7 +164,7 @@ class Button_Action:
                 with open("config.yaml", "r") as file:
                     data = yaml.safe_load(file)  
                 info = data['Device']
-                info['key_from_server'] = ''
+                info['key_from_server'] = None
                 info['wifi']['status'] = False
                 info['wifi']['SSID'] = None
                 info['wifi']['password'] = None
@@ -182,7 +182,7 @@ class Button_Action:
                 # If a match is found, print the UUID
                 if match:
                     uuid = match.group(0)
-                    # os.system(f"sudo nmcli c delete {uuid}")
+                    os.system(f"sudo nmcli c delete {uuid}")
                     
                 print('[INFO] The device is reseted now!')
                 time.sleep(3)
