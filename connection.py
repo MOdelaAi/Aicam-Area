@@ -137,42 +137,45 @@ def run_camera():
 
         # Decode QR codes in the frame
         decoded_objects = decode(frame)
-        for obj in decoded_objects:
-            
-            data = obj.data.decode('utf-8')
-            print(f"QR Code Data: {data}",type(data))
-            ssid_match = re.search(r"SSID:([^,]+)", data)
-            password_match = re.search(r"Password:([^,]+)", data)
-            key_match = re.search(r"Key:([^,]+)", data)
+        try:
+            for obj in decoded_objects:
+                
+                data = obj.data.decode('utf-8')
+                print(f"QR Code Data: {data}",type(data))
+                ssid_match = re.search(r"SSID:([^,]+)", data)
+                password_match = re.search(r"Password:([^,]+)", data)
+                key_match = re.search(r"Key:([^,]+)", data)
 
-            # เก็บข้อมูลที่ดึงได้
-            ssid = ssid_match.group(1) if ssid_match else None
-            password = password_match.group(1) if password_match else None
-            key = key_match.group(1) if key_match else None
-            # print(ssid,password,key,type(ssid),type(password),type(key))
-            check_list_wifi = os.popen("sudo iwlist wlan0 scan | grep SSID").read()
-            if ssid in check_list_wifi:
-                key_config = key
-                if len(password) != 0:
-                    status = os.popen(f'sudo nmcli dev wifi connect "{ssid}" password "{password}"').read()
-                    
-                else:
-                    status = os.popen(f'sudo nmcli dev wifi connect "{ssid}"').read()
-                if 'successfully' in status:
-                    with open("config.yaml", "r") as file:
-                        data = yaml.safe_load(file)
-                    info = data['Device']
-                    
-                    info['key_from_server'] = key_config
-                    info['wifi']['status'] = True
-                    info['wifi']['SSID'] = ssid
-                    info['wifi']['password'] = password if len(password)!=0 else None
-                    with open("config.yaml", "w") as file:
-                        yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
+                # เก็บข้อมูลที่ดึงได้
+                ssid = ssid_match.group(1) if ssid_match else None
+                password = password_match.group(1) if password_match else None
+                key = key_match.group(1) if key_match else None
+                # print(ssid,password,key,type(ssid),type(password),type(key))
+                check_list_wifi = os.popen("sudo iwlist wlan0 scan | grep SSID").read()
+                if ssid in check_list_wifi:
+                    key_config = key
+                    if len(password) != 0:
+                        status = os.popen(f'sudo nmcli dev wifi connect "{ssid}" password "{password}"').read()
                         
-                    os._exit(1)
-                print("wifi or password is not correct")
-                continue
+                    else:
+                        status = os.popen(f'sudo nmcli dev wifi connect "{ssid}"').read()
+                    if 'successfully' in status:
+                        with open("config.yaml", "r") as file:
+                            data = yaml.safe_load(file)
+                        info = data['Device']
+                        
+                        info['key_from_server'] = key_config
+                        info['wifi']['status'] = True
+                        info['wifi']['SSID'] = ssid
+                        info['wifi']['password'] = password if len(password)!=0 else None
+                        with open("config.yaml", "w") as file:
+                            yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
+                            
+                        os._exit(1)
+                    print("wifi or password is not correct")
+                    continue
+        except:
+            print("Error")
 
 def main():
     # สร้าง Thread สำหรับรัน BLE Server
