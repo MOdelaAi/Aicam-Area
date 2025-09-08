@@ -56,13 +56,12 @@ class ModelboxProcess:
     def count_objects_in_polygons(self, results):
         self.polygon_counts = [0, 0]
 
-        if results[0].boxes.id is None:
+        if not results or results[0].boxes is None:
             return
 
         boxes = results[0].boxes.xyxy.cpu().numpy()
-        track_ids = results[0].boxes.id.int().cpu().tolist()
 
-        for box, tid in zip(boxes, track_ids):
+        for box in boxes:
             x1, y1, x2, y2 = map(float, box)
 
             # corners of the bbox
@@ -100,11 +99,15 @@ class ModelboxProcess:
 
     def __call__(self, img, show_regions=True, show_boxes=True):
         origin_img = img.copy()
-        results = self.model.track(
-            origin_img, save=False, show=False, conf=0.6,
-            persist=True, classes=[0], iou=0.4,
-            verbose=False, tracker='botsort.yaml'
-        )
+        results = self.model.predict(
+                    origin_img,
+                    save=False,
+                    show=False,
+                    conf=0.6,
+                    iou=0.4,
+                    classes=[0],   # person only
+                    verbose=False
+                )
 
         detected = origin_img.copy()
         self.count_objects_in_polygons(results)
@@ -163,7 +166,7 @@ class ModelboxProcess:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
                 # draw center point
-                cv2.circle(detected, (cx, cy), 4, color, -1)
+                # cv2.circle(detected, (cx, cy), 4, color, -1)
 
         return detected, self.polygon_counts
 
