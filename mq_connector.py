@@ -655,7 +655,7 @@ class Mqtt_Connect(mqtt.Client):
         ROOT = os.path.dirname(__file__)
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-        file_url = url if option else 'https://updatego.modela.co.th/update_aicam/Aicam-PPE_v1.0.0.zip'
+        file_url = url if option else 'https://updatego.modela.co.th/update_aicam/Aicam-Area_v1.0.0.zip'
         local_file = 'downloaded_file.zip'
 
         try:

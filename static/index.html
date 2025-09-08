@@ -9,14 +9,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Prompt&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
   <div class="main-layout">
     <!-- Header Section -->
     <div class="header">
-      <h1>Modela AI Camera Counting</h1>
+      <h1><i class="fa-solid fa-camera"></i> Modela AI Camera Counting</h1>
       <div class="datetime">
         <span class="live-indicator"></span>
+        <i class="fa-regular fa-clock"></i>
         วัน <span id="day"></span>
       </div>
     </div>
@@ -25,8 +27,8 @@
       <div class="testfullscreen">
         <video id="video" class="showvideostream" autoplay playsinline muted></video>
         <div id="no-camera-message" class="no-camera-message">ไม่มีกล้อง<span class="loading-dots"></span></div>
-        <button class="fullscreen-btn" id="fullscreenButton" onclick="toggleFullscreen()">🔍 เต็มหน้าจอ</button>
-        <button class="exit-fullscreen-btn" id="exitFullscreenButton" onclick="toggleFullscreen()">❌ ออกจากโหมดเต็มหน้าจอ</button>
+        <button class="fullscreen-btn" id="fullscreenButton" onclick="toggleFullscreen()"><i class="fa-solid fa-maximize"></i> เต็มหน้าจอ</button>
+        <button class="exit-fullscreen-btn" id="exitFullscreenButton" onclick="toggleFullscreen()"><i class="fa-solid fa-xmark"></i> ออกจากโหมดเต็มหน้าจอ</button>
       </div>
     </div>
 
@@ -40,32 +42,57 @@
         </select>
       </div>
 
-      <div class="draw-polygon">
-        <button class="popup-panel-btn" id="drawPolygonButton">✏️ วาดพื้นที่นับ</button>
-        <button class="clear-polygon-btn" id="clearPolygonButton" onclick="if(confirm('⚠️ คุณแน่ใจหรือไม่ว่าต้องการล้างพื้นที่นับทั้งหมด?')) { fetch('/clear_polygons', { method: 'POST' }).then(() => { alert('✅ พื้นที่นับถูกล้างแล้ว'); }).catch(err => { console.error('❌ ล้มเหลวในการล้างพื้นที่นับ:', err); alert('❌ ล้มเหลวในการล้างพื้นที่นับ'); }); }">🗑️ ล้างพื้นที่นับ</button>
-      </div>
+     <div class="draw-polygon">
+      <button class="popup-panel-btn" id="drawPolygonButton">
+        <i class="fa-solid fa-draw-polygon"></i> วาดพื้นที่นับ
+      </button>
+
+      <button class="clear-polygon-btn" id="clearPolygonButton"
+        onclick="if(confirm('⚠️ คุณแน่ใจต้องการล้างพื้นที่นับทั้งหมดหรือไม่?')) { 
+          fetch('/clear_polygons', { method: 'POST' })
+          .then(() => { alert('✅ พื้นที่นับถูกล้างแล้ว'); })
+          .catch(err => { 
+            console.error('❌ ล้มเหลวในการล้างพื้นที่นับ:', err); 
+            alert('❌ ล้มเหลวในการล้างพื้นที่นับ'); 
+          }); 
+        }">
+        <i class="fa-solid fa-trash"></i> ล้างพื้นที่นับ
+      </button>
     </div>
   </div>
 
   <!-- Pop-up moved outside main-layout -->
   <div id="capturePopup" class="popup-overlay">
     <div class="popup-content">
-      <span class="close-btn" id="closePopup">✖</span>
-      <h2>ภาพที่จับมา</h2>
-      <div class="popup-body">
-        <img id="capturedImage" alt="Captured snapshot" />
-        <canvas id="drawCanvas"></canvas>
+      <h2>คลิกที่รูปภาพเพื่อกำหนดจุดวาดกรอบ</h2>
+      <span class="close-btn" id="closePopup">
+        <i class="fa-solid fa-xmark"></i>
+      </span>
+     <div class="popup-body">
+        <div class="image-canvas-container fixed-size">
+          <!-- Both image and canvas locked to 1080x720 -->
+          <img id="capturedImage" alt="Captured snapshot" width="1080" height="720" />
+          <canvas id="drawCanvas" width="1080" height="720"></canvas>
+        </div>
       </div>
       <div class="popup-footer">
-        <button id="ResetPoint">Reset</button>
-        <button id="UndoPoint">Undo</button>
-        <button id="SavePolygon">Save</button>
-        <div id="DeleteButtons"></div>
-        <button id="SendPolygonData">Finish</button>  
-      </div>
-      <div class="polygoninfo">
-        <div class="polygoncount"> 0 </div>
-        <div class="pointcount"> 0 </div>
+       <button id="ResetPoint" class="btn-base btn-neutral">
+        <i class="fa-solid fa-trash"></i> Reset
+      </button>
+      <button id="UndoPoint" class="btn-base btn-warning">
+        <i class="fa-solid fa-undo"></i> Undo
+      </button>
+      <button id="SavePolygon" class="btn-base btn-success">
+        <i class="fa-solid fa-floppy-disk"></i> Draw
+      </button>
+      <div id="DeleteButtons"></div>
+      <button id="SendPolygonData" class="btn-base btn-info">
+        <i class="fa-solid fa-paper-plane"></i> Finish
+      </button>
+        <div class="polygoninfo">
+          <div class="polygoncount"> 0 </div>
+          <div class="pointcount"> 0 </div>
+        </div>
       </div>
     </div>
   </div>
@@ -251,14 +278,8 @@
 
         const img = document.getElementById("capturedImage");
         img.onload = function() {
-          const rect = img.getBoundingClientRect();
-
-          canvas.width = rect.width;
-          canvas.height = rect.height;
-          canvas.style.width = rect.width + "px";
-          canvas.style.height = rect.height + "px";
-          canvas.style.left = img.offsetLeft + "px";
-          canvas.style.top = img.offsetTop + "px";
+          canvas.width = 1080;
+          canvas.height = 720;
           points = []; // reset drawing
           drawAll();   // ✅ redraw polygons from backend
           fetch("/save_polygons", {
@@ -382,7 +403,7 @@
       };
       polys.forEach((_, idx) => {
         const btn = document.createElement("button");
-        btn.textContent = `Delete Polygon ${idx + 1}`;
+        btn.innerHTML = `<i class="fa-solid fa-delete-left"></i> Delete Polygon ${idx + 1}`;
 
         btn.onmouseenter = () => {
           highlightedPolygon = idx;
@@ -511,6 +532,12 @@
 
       if (preparedData.polygons.length === 0) {
         alert("⚠️ No polygons to send!");
+        return;
+      }
+
+      const confirmSend = confirm("คุณต้องการส่ง Polygon ทั้งหมดจริงหรือไม่?");
+      if (!confirmSend) {
+        console.log("🚫 User canceled sending polygons");
         return;
       }
 
