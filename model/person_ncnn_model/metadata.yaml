@@ -1,7 +1,7 @@
-description: Ultralytics best model trained on ./yolov5-coco-datasets/dataset.yaml
+description: Ultralytics YOLOv8n model trained on C:\Users\aicam\OneDrive\Desktop\AI-Training\yolo\dataset.yaml
 author: Ultralytics
-date: '2024-11-13T10:53:08.567745'
-version: 8.2.83
+date: '2025-02-10T11:07:22.684419'
+version: 8.3.70
 license: AGPL-3.0 License (https://ultralytics.com/license)
 docs: https://docs.ultralytics.com
 stride: 32
@@ -12,3 +12,6 @@ imgsz:
 - 640
 names:
   0: person
+args:
+  batch: 1
+  half: false

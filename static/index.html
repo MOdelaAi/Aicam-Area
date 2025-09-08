@@ -1,232 +1,648 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Modela Ai IOT</title>
-    <!-- Include jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
-      rel="stylesheet"
-    />
-
-    <style>
-      body {
-        background-color: #e1e1e1;
-        font-family: "Prompt", sans-serif;
-      }
-
-      .fullscreen-btn,
-      .exit-fullscreen-btn {
-        position: fixed;
-        bottom: 10px;
-        right: 10px;
-        background-color: rgba(0, 0, 0, 0.5);
-        color: white;
-        border: none;
-        padding: 10px;
-        cursor: pointer;
-        z-index: 9999;
-      }
-
-      .fullscreen-btn {
-        display: block;
-      }
-
-      .exit-fullscreen-btn {
-        background-color: rgba(0, 0, 0, 0.8);
-        display: none;
-        /* ซ่อนปุ่มเริ่มต้น */
-      }
-
-      .showvideostream {
-        width: 640px;
-        height: 480px;
-      }
-
-      @media only screen and (max-width: 768px) {
-        .showvideostream {
-          width: 100%;
-          height: 100%;
-        }
-      }
-
-      .showvideostream_fullscreen {
-        width: 100%;
-        height: 100%;
-      }
-
-      /* ปรับ CSS สำหรับการแสดงปุ่มในโหมดเต็มหน้าจอ */
-      .fullscreen-mode .fullscreen-btn,
-      .fullscreen-mode .exit-fullscreen-btn {
-        z-index: 10000;
-        /* ให้แน่ใจว่าปุ่มอยู่ด้านบนสุด */
-      }
-    </style>
-
-    <script>
-      $(document).ready(function () {
-        function getThaiDayName(dayIndex) {
-          const dayNames = [
-            "อาทิตย์",
-            "จันทร์",
-            "อังคาร",
-            "พุธ",
-            "พฤหัสบดี",
-            "ศุกร์",
-            "เสาร์",
-          ];
-          return dayNames[dayIndex];
-        }
-
-        function formatDate(date) {
-          const dayNames = getThaiDayName(date.getDay());
-          const day = date.getDate();
-          const month = date.getMonth() + 1;
-          const year = date.getFullYear();
-          const hours = String(date.getHours()).padStart(2, "0");
-          const minutes = String(date.getMinutes()).padStart(2, "0");
-          const seconds = String(date.getSeconds()).padStart(2, "0");
-
-          return `${dayNames} ${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-        }
-
-        function updateDateTime() {
-          const now = new Date();
-          $("#day").text(formatDate(now));
-        }
-
-        check_temperature_pi();
-
-        function check_temperature_pi() {
-          $.ajax({
-            type: "GET",
-            url: "/check_temperature_pi",
-            success: function (response) {
-              $("#temperature").text(response.cpu_temp);
-            },
-          });
-        }
-
-        setInterval(updateDateTime, 1000);
-        setInterval(check_temperature_pi, 600000);
-      });
-
-      function toggleFullscreen() {
-        const elem = document.getElementById("testfullscreen");
-        const fullscreenButton = document.getElementById("fullscreenButton");
-        const exitFullscreenButton = document.getElementById(
-          "exitFullscreenButton"
-        );
-        const body = document.body;
-        if (!document.fullscreenElement) {
-          // Enter fullscreen
-          if (elem.requestFullscreen) {
-            elem.requestFullscreen();
-          } else if (elem.mozRequestFullScreen) {
-            // Firefox
-            elem.mozRequestFullScreen();
-          } else if (elem.webkitRequestFullscreen) {
-            // Chrome, Safari and Opera
-            elem.webkitRequestFullscreen();
-          } else if (elem.msRequestFullscreen) {
-            // IE/Edge
-            elem.msRequestFullscreen();
-          }
-          fullscreenButton.style.display = "none";
-          exitFullscreenButton.style.display = "block";
-          body.classList.add("fullscreen-mode"); // เพิ่มคลาสสำหรับโหมดเต็มหน้าจอ
-          $("#showvideo").addClass("showvideostream_fullscreen");
-          $("#showvideo").removeClass("showvideostream");
-        } else {
-          // Exit fullscreen
-          if (document.exitFullscreen) {
-            document.exitFullscreen();
-          } else if (document.mozCancelFullScreen) {
-            // Firefox
-            document.mozCancelFullScreen();
-          } else if (document.webkitExitFullscreen) {
-            // Chrome, Safari and Opera
-            document.webkitExitFullscreen();
-          } else if (document.msExitFullscreen) {
-            // IE/Edge
-            document.msExitFullscreen();
-          }
-          fullscreenButton.style.display = "block";
-          exitFullscreenButton.style.display = "none";
-          body.classList.remove("fullscreen-mode"); // ลบคลาสสำหรับโหมดเต็มหน้าจอ
-          $("#showvideo").addClass("showvideostream");
-          $("#showvideo").removeClass("showvideostream_fullscreen");
-        }
-      }
-
-      $(document).on("fullscreenchange", function (e) {
-        if (!document.fullscreenElement) {
-          exitFullscreenfunction();
-        } else {
-        }
-      });
-
-      function exitFullscreenfunction() {
-        const elem = document.getElementById("testfullscreen");
-        const fullscreenButton = document.getElementById("fullscreenButton");
-        const exitFullscreenButton = document.getElementById(
-          "exitFullscreenButton"
-        );
-        const body = document.body;
-        if (document.exitFullscreen) {
-        } else if (document.mozCancelFullScreen) {
-          // Firefox
-          document.mozCancelFullScreen();
-        } else if (document.webkitExitFullscreen) {
-          // Chrome, Safari and Opera
-          document.webkitExitFullscreen();
-        } else if (document.msExitFullscreen) {
-          // IE/Edge
-          document.msExitFullscreen();
-        }
-        fullscreenButton.style.display = "block";
-        exitFullscreenButton.style.display = "none";
-        body.classList.remove("fullscreen-mode"); // ลบคลาสสำหรับโหมดเต็มหน้าจอ
-        $("#showvideo").addClass("showvideostream");
-        $("#showvideo").removeClass("showvideostream_fullscreen");
-      }
-    </script>
-  </head>
-
-  <body>
-    <div style="text-align: center">
-      <span style="font-weight: bold; font-size: 32px"
-        >Modela Ai Camera Counting
-      </span>
-      <!-- <img style="width: 10%;" src="/static/assets/images/logo.png" alt=""> -->
-      <p>วัน <span id="day"></span></p>
-      <p>อุณหภูมิ Pi (Server): <span id="temperature"></span> 'C</p>
-      <div id="testfullscreen">
-        <img
-          id="showvideo"
-          name="showvideo"
-          src="stream.mjpg"
-          class="showvideostream"
-        />
-        <button
-          class="fullscreen-btn"
-          id="fullscreenButton"
-          onclick="toggleFullscreen()"
-        >
-          เต็มหน้าจอ
-        </button>
-        <button
-          class="exit-fullscreen-btn"
-          id="exitFullscreenButton"
-          onclick="toggleFullscreen()"
-        >
-          ออกจากโหมดเต็มหน้าจอ
-        </button>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Modela Ai IOT</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" href="static/styles.css?v=4" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="main-layout">
+    <!-- Header Section -->
+    <div class="header">
+      <h1>Modela AI Camera Counting</h1>
+      <div class="datetime">
+        <span class="live-indicator"></span>
+        วัน <span id="day"></span>
       </div>
     </div>
-  </body>
+    <!-- Video Section (Main Content) -->
+    <div class="video-container">
+      <div class="testfullscreen">
+        <video id="video" class="showvideostream" autoplay playsinline muted></video>
+        <div id="no-camera-message" class="no-camera-message">ไม่มีกล้อง<span class="loading-dots"></span></div>
+        <button class="fullscreen-btn" id="fullscreenButton" onclick="toggleFullscreen()">🔍 เต็มหน้าจอ</button>
+        <button class="exit-fullscreen-btn" id="exitFullscreenButton" onclick="toggleFullscreen()">❌ ออกจากโหมดเต็มหน้าจอ</button>
+      </div>
+    </div>
+
+    <!-- Controls Section -->
+    <div class="controls-container">
+      <div class="select-group">
+        <label for="cam">🎥 เลือกกล้อง</label>
+        <select id="cam">
+          <option value="0" selected>กล้อง 1</option>
+          <option value="1">กล้อง 2</option>
+        </select>
+      </div>
+
+      <div class="draw-polygon">
+        <button class="popup-panel-btn" id="drawPolygonButton">✏️ วาดพื้นที่นับ</button>
+        <button class="clear-polygon-btn" id="clearPolygonButton" onclick="if(confirm('⚠️ คุณแน่ใจหรือไม่ว่าต้องการล้างพื้นที่นับทั้งหมด?')) { fetch('/clear_polygons', { method: 'POST' }).then(() => { alert('✅ พื้นที่นับถูกล้างแล้ว'); }).catch(err => { console.error('❌ ล้มเหลวในการล้างพื้นที่นับ:', err); alert('❌ ล้มเหลวในการล้างพื้นที่นับ'); }); }">🗑️ ล้างพื้นที่นับ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pop-up moved outside main-layout -->
+  <div id="capturePopup" class="popup-overlay">
+    <div class="popup-content">
+      <span class="close-btn" id="closePopup">✖</span>
+      <h2>ภาพที่จับมา</h2>
+      <div class="popup-body">
+        <img id="capturedImage" alt="Captured snapshot" />
+        <canvas id="drawCanvas"></canvas>
+      </div>
+      <div class="popup-footer">
+        <button id="ResetPoint">Reset</button>
+        <button id="UndoPoint">Undo</button>
+        <button id="SavePolygon">Save</button>
+        <div id="DeleteButtons"></div>
+        <button id="SendPolygonData">Finish</button>  
+      </div>
+      <div class="polygoninfo">
+        <div class="polygoncount"> 0 </div>
+        <div class="pointcount"> 0 </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let current_stream = {
+      selected_cam: 0,
+      cameras: [
+        {
+          id: 0,
+          polygons: [
+            { coord: [], seen: 0, name: "" },
+            { coord: [], seen: 0, name: "" }
+          ]
+        },
+        {
+          id: 1,
+          polygons: [
+            { coord: [], seen: 0, name: "" },
+            { coord: [], seen: 0, name: "" }
+          ]
+        }
+      ]
+    };
+
+    let pc;
+    let isRestarting = false;
+    let highlightedPolygon = null; 
+    let historyStack = [];
+
+    // Polygon drawing variables
+    let points = [];
+    const canvas = document.getElementById("drawCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // ---- WebRTC setup ----
+    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+    async function restartStream() {
+      if (isRestarting) return;
+      isRestarting = true;
+
+      if (pc) {
+        try {
+          pc.getSenders().forEach(sender => pc.removeTrack(sender));
+          await pc.close();
+        } catch (err) {
+          console.warn("⚠️ Error closing previous pc:", err);
+        }
+        pc = null;
+      }
+
+      pc = new RTCPeerConnection(config);
+      pc.ontrack = (event) => { document.getElementById("video").srcObject = event.streams[0]; };
+
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 640; canvas.height = 480;
+        const stream = canvas.captureStream();
+        const dummyTrack = stream.getVideoTracks()[0];
+        pc.addTrack(dummyTrack);
+
+        const offer = await pc.createOffer({ offerToReceiveVideo: true });
+        await pc.setLocalDescription(offer);
+
+        const res = await fetch("/offer", {
+          method: "POST",
+          body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const answer = await res.json();
+        await pc.setRemoteDescription(answer);
+      } catch (err) {
+        console.error("🚨 WebRTC restart error:", err);
+      }
+      isRestarting = false;
+    }
+
+    function pushHistory() {
+      const camIndex = current_stream.selected_cam;
+      // deep copy of current cam state
+      const snapshot = JSON.parse(JSON.stringify(current_stream.cameras[camIndex]));
+      historyStack.push({ camIndex, snapshot, points: [...points] });
+    }
+
+    async function startStream() {
+      pc = new RTCPeerConnection(config);
+      pc.ontrack = (event) => {
+        console.log("🎥 Got WebRTC stream");
+        document.getElementById("video").srcObject = event.streams[0];
+      };
+
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 1080; canvas.height = 720;
+        const stream = canvas.captureStream();
+        const dummyTrack = stream.getVideoTracks()[0];
+        pc.addTrack(dummyTrack);
+
+        const offer = await pc.createOffer({ offerToReceiveVideo: true });
+        await pc.setLocalDescription(offer);
+
+        const res = await fetch("/offer", {
+          method: "POST",
+          body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const answer = await res.json();
+        await pc.setRemoteDescription(answer);
+      } catch (err) {
+        console.error("🚨 WebRTC connection error:", err);
+      }
+    }
+
+    async function sendSelection() {
+      const cam = parseInt(document.getElementById("cam").value, 10);
+
+      console.log("📤 Sending frame selection:", cam);
+
+      try {
+        const res = await fetch("/set_frame", {
+          method: "POST",
+          body: JSON.stringify({ cam }),
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const text = await res.text();
+        console.log("✅ Frame selection response:", text);
+
+        await restartStream();
+      } catch (err) {
+        console.error("❌ Frame selection failed", err);
+      }
+    }
+
+    // Open modal
+    document.getElementById("drawPolygonButton").addEventListener("click", async () => {
+      console.log("🎨 Attempting to open capture popup");
+
+      try {
+        // 🔄 Sync polygons from backend
+        const polyRes = await fetch("/polygons.json", { cache: "no-store" });
+        if (polyRes.ok) {
+          const data = await polyRes.json();
+          current_stream = data;
+          console.log("📂 Synced polygons from backend:", current_stream);
+        } else {
+          console.warn("⚠️ Failed to fetch polygons.json:", polyRes.status);
+        }
+      } catch (err) {
+        console.warn("⚠️ Could not sync polygons:", err);
+      }
+
+      const capturePopup = document.getElementById("capturePopup");
+      const capturedImage = document.getElementById("capturedImage");
+
+      if (!capturePopup || !capturedImage) {
+        alert("ข้อผิดพลาด: ไม่พบองค์ประกอบป๊อปอัพในหน้าเว็บ");
+        return;
+      }
+
+      try {
+        console.log("📸 Fetching image from /capture.jpg");
+        const res = await fetch(`/capture.jpg?fmt=jpg&w=1080&h=720&_=${Date.now()}`, {
+          method: "GET",
+          cache: "no-store"
+        });
+
+        if (!res.ok) throw new Error(`Failed to capture image: ${res.status}`);
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+
+        if (capturedImage.src) {
+          URL.revokeObjectURL(capturedImage.src);
+          capturedImage.src = "";
+        }
+
+        capturedImage.src = url;
+        capturePopup.style.display = "flex";
+
+        const img = document.getElementById("capturedImage");
+        img.onload = function() {
+          const rect = img.getBoundingClientRect();
+
+          canvas.width = rect.width;
+          canvas.height = rect.height;
+          canvas.style.width = rect.width + "px";
+          canvas.style.height = rect.height + "px";
+          canvas.style.left = img.offsetLeft + "px";
+          canvas.style.top = img.offsetTop + "px";
+          points = []; // reset drawing
+          drawAll();   // ✅ redraw polygons from backend
+          fetch("/save_polygons", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              camera_id: cam.id,
+              polygons: cam.polygons.filter(p => p.coord.length > 0)
+            })
+          }).then(r => r.json()).then(resp => {
+            console.log("✅ Polygon deletion persisted:", resp);
+          }).catch(err => {
+            console.error("❌ Failed to persist deletion:", err);
+          });
+        };
+      } catch (err) {
+        console.error("❌ Capture failed:", err);
+        alert("ไม่สามารถจับภาพได้: " + err.message);
+      }
+    });
+
+    // Close modal and clean up
+    document.getElementById("closePopup").addEventListener("click", () => {
+      console.log("🔲 Closing pop-up via close button");
+      const capturePopup = document.getElementById("capturePopup");
+      const capturedImage = document.getElementById("capturedImage");
+      if (capturedImage.src) {
+        URL.revokeObjectURL(capturedImage.src);
+        capturedImage.src = "";
+      }
+      capturePopup.style.display = "none";
+    });
+
+    // Close if user clicks outside modal content
+    document.getElementById("capturePopup").addEventListener("click", (e) => {
+      if (e.target.id === "capturePopup") {
+        console.log("🔲 Closing pop-up via outside click");
+        const capturePopup = document.getElementById("capturePopup");
+        const capturedImage = document.getElementById("capturedImage");
+        if (capturedImage.src) {
+          URL.revokeObjectURL(capturedImage.src);
+          capturedImage.src = "";
+        }
+        capturePopup.style.display = "none";
+      }
+    });
+
+    // ================= Draw Polygon =================
+    function drawAll() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const camIndex = current_stream.selected_cam;
+      const cam = current_stream.cameras[camIndex];
+      const polys = cam.polygons.filter(p => p.coord.length > 0);
+
+      const colors = [
+        { stroke: "lime",    fill: "rgba(0,255,0,0.25)" },
+        { stroke: "cyan",    fill: "rgba(0,255,255,0.25)" },
+        { stroke: "magenta", fill: "rgba(255,0,255,0.25)" },
+        { stroke: "orange",  fill: "rgba(255,165,0,0.25)" }
+      ];
+
+      // Draw polygons
+      polys.forEach((polyObj, idx) => {
+        const poly = polyObj.coord;
+        ctx.beginPath();
+        ctx.moveTo(poly[0][0], poly[0][1]);
+        for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]);
+        ctx.closePath();
+
+        const c = colors[idx % colors.length];
+
+        if (highlightedPolygon === idx) {
+          // highlight this polygon
+          ctx.strokeStyle = c.stroke;
+          ctx.lineWidth = 4;
+          ctx.fillStyle = c.fill.replace("0.25", "0.5");
+        } else if (highlightedPolygon !== null) {
+          // dim non-highlighted polygons
+          ctx.strokeStyle = "rgba(150,150,150,0.5)";
+          ctx.lineWidth = 1;
+          ctx.fillStyle = "rgba(200,200,200,0.1)";
+        } else {
+          // normal drawing
+          ctx.strokeStyle = c.stroke;
+          ctx.lineWidth = 2;
+          ctx.fillStyle = c.fill;
+        }
+
+        ctx.stroke();
+        ctx.fill();
+      });
+
+      // ✅ Draw in-progress polygon INSIDE drawAll
+      if (points.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+        ctx.strokeStyle = "yellow";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        points.forEach((p, i) => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+          ctx.fillStyle = "red";
+          ctx.fill();
+          ctx.fillText(i + 1, p.x + 8, p.y - 8);
+        });
+      }
+
+      document.querySelector(".pointcount").textContent = points.length;
+      document.querySelector(".polygoncount").textContent = polys.length;
+
+      // ✅ Build delete buttons dynamically
+      const deleteContainer = document.getElementById("DeleteButtons");
+      deleteContainer.innerHTML = "";
+      deleteContainer.onmouseleave = () => {
+        highlightedPolygon = null; 
+        drawAll();
+      };
+      polys.forEach((_, idx) => {
+        const btn = document.createElement("button");
+        btn.textContent = `Delete Polygon ${idx + 1}`;
+
+        btn.onmouseenter = () => {
+          highlightedPolygon = idx;
+          drawAll();
+        };
+
+        btn.onclick = () => {
+          pushHistory();
+          cam.polygons[idx] = { coord: [], seen: 0, name: "" };
+          highlightedPolygon = null;
+          console.log(`🗑️ Deleted polygon ${idx + 1} on camera ${cam.id}`);
+          drawAll();
+
+          fetch("/save_polygons", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              camera_id: cam.id,
+              polygons: cam.polygons.filter(p => p.coord.length > 0)
+            })
+          }).then(r => r.json()).then(resp => {
+            console.log("✅ Polygon deletion persisted:", resp);
+          }).catch(err => {
+            console.error("❌ Failed to persist deletion:", err);
+          });
+        };
+
+        deleteContainer.appendChild(btn);
+      });
+    } 
+
+    function drawPoints() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (points.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.strokeStyle = "yellow";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      points.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "red";
+        ctx.fill();
+        ctx.fillText(i + 1, p.x + 8, p.y - 8);
+      });
+
+      document.querySelector(".pointcount").textContent = points.length;
+    }
+  
+
+    // Add point on click
+    canvas.addEventListener("click", (e) => {
+      pushHistory();
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      points.push({x, y});
+      drawAll();
+    });
+
+    // ================ Button Handlers =================
+    document.getElementById("ResetPoint").addEventListener("click", () => {
+      pushHistory();
+      const camIndex = current_stream.selected_cam;
+      const cam = current_stream.cameras[camIndex];
+      points = [];
+      cam.polygons = [
+        { coord: [], seen: 0, name: "" },
+        { coord: [], seen: 0, name: "" }
+      ];
+      drawAll();
+    });
+
+    document.getElementById("UndoPoint").addEventListener("click", () => {
+      points.pop();
+      drawAll();
+    });
+
+    // Save polygon
+    document.getElementById("SavePolygon").addEventListener("click", () => {
+      if (points.length > 2) {
+        pushHistory();
+        const camIndex = current_stream.selected_cam;
+        const cam = current_stream.cameras[camIndex];
+
+        const existingCount = cam.polygons.filter(p => p.coord.length > 0).length;
+        if (existingCount >= 2) {
+          alert("⚠️ Only 2 polygons allowed per camera");
+          points = [];
+          drawAll();
+          return;
+        }
+
+        const polyCoords = points.map(p => [p.x, p.y]);
+        cam.polygons[existingCount] = {
+          coord: polyCoords,
+          seen: 0,
+          name: "Polygon-" + (existingCount + 1)
+        };
+
+        console.log(`✅ Polygon saved on Camera ${cam.id}:`, polyCoords);
+
+        points = [];
+        drawAll();
+      } else {
+        alert("Need at least 3 points to form a polygon!");
+      }
+    });
+    // Finish: prepare data and send immediately
+    document.getElementById("SendPolygonData").addEventListener("click", async () => {
+      const camIndex = current_stream.selected_cam;
+      const cam = current_stream.cameras[camIndex];
+
+      // Collect only polygons with coords
+      const preparedData = {
+        camera_id: cam.id,
+        polygons: cam.polygons.filter(p => p.coord.length > 0)
+      };
+
+      if (preparedData.polygons.length === 0) {
+        alert("⚠️ No polygons to send!");
+        return;
+      }
+
+      console.log("📦 Prepared polygon data:", preparedData);
+
+      try {
+        const res = await fetch("/save_polygons", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(preparedData)
+        });
+
+        if (!res.ok) {
+          throw new Error(`Server error ${res.status}`);
+        }
+
+        const result = await res.text();
+        console.log("✅ Backend response:", result);
+        alert("Polygons sent successfully!");
+
+        // Reset after sending
+        // points = [];
+        // savedPolygons = [];
+        // cam.polygons = [
+        //   { coord: [], seen: 0, name: "" },
+        //   { coord: [], seen: 0, name: "" }
+        // ];
+        // drawAll();
+
+      } catch (err) {
+        console.error("❌ Failed to send polygons:", err);
+        alert("Failed to send polygons: " + err.message);
+      }
+    });
+
+    document.getElementById("cam").addEventListener("change", async (e) => {
+      const camId = parseInt(e.target.value, 10);
+      current_stream.selected_cam = camId;
+
+      console.log("📷 Switched to camera:", camId);
+
+      // clear unfinished points
+      points = [];
+
+      // redraw canvas with polygons for this camera
+      drawAll();
+
+      // tell backend to switch stream
+      await sendSelection();
+    });
+
+    // ---- UI utilities ----
+    function getThaiDayName(dayIndex) {
+      const dayNames = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+      return dayNames[dayIndex];
+    }
+
+    function formatDate(date) {
+      const dayName = getThaiDayName(date.getDay());
+      const day = date.getDate();
+      const month = date.getMonth() + 1;
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const seconds = String(date.getSeconds()).padStart(2, "0");
+      return `${dayName} ${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+    }
+
+    function updateDateTime() {
+      const now = new Date();
+      document.getElementById("day").textContent = formatDate(now);
+    }
+
+    function toggleFullscreen() {
+      const videoContainer = document.querySelector(".testfullscreen");
+      const video = document.getElementById("video");
+
+      if (!document.fullscreenElement) {
+        videoContainer.requestFullscreen().then(() => {
+          video.classList.add("showvideostream_fullscreen");
+          document.getElementById("fullscreenButton").style.display = "none";
+          document.getElementById("exitFullscreenButton").style.display = "block";
+        });
+      } else {
+        document.exitFullscreen().then(() => {
+          video.classList.remove("showvideostream_fullscreen");
+          document.getElementById("fullscreenButton").style.display = "block";
+          document.getElementById("exitFullscreenButton").style.display = "none";
+        });
+      }
+    }
+
+    document.addEventListener("fullscreenchange", () => {
+      if (!document.fullscreenElement) {
+        document.getElementById("fullscreenButton").style.display = "inline-block";
+        document.getElementById("exitFullscreenButton").style.display = "none";
+      }
+    });
+
+    function undoAction() {
+      if (historyStack.length === 0) {
+        alert("⚠️ Nothing to undo!");
+        return;
+      }
+      const last = historyStack.pop();
+      if (last.camIndex !== current_stream.selected_cam) {
+        // optional: skip if different camera
+        console.warn("Undo skipped: different camera");
+        return;
+      }
+
+      current_stream.cameras[last.camIndex] = last.snapshot;
+      points = last.points;
+      drawAll();
+    }
+
+
+    // ---- Init ----
+    function attachEvents() {
+      document.getElementById("cam").addEventListener("change", sendSelection);
+      document.getElementById("UndoPoint").addEventListener("click", undoAction);
+    }
+
+    async function initialize() {
+      attachEvents();
+      await startStream();
+      setInterval(updateDateTime, 1000);
+      updateDateTime();
+    }
+
+    // Start
+    initialize();
+  </script>
+</body>
 </html>

@@ -2,27 +2,33 @@ import re
 import subprocess
 from urllib.parse import urlparse
 import os
+import glob
 import time
 import socket
 import logging
 import yaml
+import requests
+from logger_config import setup_logger
+#set logger
+logger = setup_logger(__name__)
+
 
 ROOT = os.path.dirname(__file__)
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(levelname)s => %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
 
 class DeviceCare:
     
     def Map_value(inMin,inMax,outMin,outMax):
-        iwconfig_result = os.popen('iwconfig wlan0').read()
-        signal_level = int(re.search(r'Signal level=(-\d+)', iwconfig_result).group(1))
-        result = (signal_level - inMin) * (outMax - outMin) / (inMax - inMin) + outMin
-        if result > outMax:
-            result = outMax
-        elif result<outMin:
-            result = outMin
-        return round(result,2)
+        try:
+            iwconfig_result = os.popen('iwconfig wlan0').read()
+            signal_level = int(re.search(r'Signal level=(-\d+)', iwconfig_result).group(1))
+            result = (signal_level - inMin) * (outMax - outMin) / (inMax - inMin) + outMin
+            if result > outMax:
+                result = outMax
+            elif result<outMin:
+                result = outMin
+            return round(result,2)
+        except:
+          return 0.0
 
 
     def get_cpu_temperature():
@@ -35,31 +41,34 @@ class DeviceCare:
         return float(temp)
     
     
-    def wifi_connection_again()->bool:
-        with open("config.yaml", "r") as file:
-            data = yaml.safe_load(file) 
-        data = data['Device']
-        
-        check_list_wifi = os.popen("sudo iwlist wlan0 scan | grep SSID").read()
-        if data['SSID'] in check_list_wifi:
-            status = status = os.popen(f"sudo nmcli dev wifi connect '{data['SSID']}' password '{data['password']}'").read()
-            if 'successfully' in status:
-                return True
-             
-        logging.warning("no wifi !")
-        return False
-
-
-    def check_internet(host="8.8.8.8", port=53, timeout=3)->bool:
+    def Connection_wifi()->bool:
         try:
-            socket.setdefaulttimeout(timeout)
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
-            
-            return True
-        except socket.error as ex:
-            
+            with open("config.yaml", "r") as file:
+                data = yaml.safe_load(file)
+
+            info = data['Device']
+            ssid = info['wifi']['SSID']
+            password = info['wifi']['password']
+
+            subprocess.run(['/usr/bin/sudo', 'nmcli', 'connection', 'delete', ssid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+            result = subprocess.run([
+                '/usr/bin/sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid, 'password', password
+            ], capture_output=True, text=True)
+
+            if result.returncode == 0:
+                logger.info(f"Connected to WiFi: {ssid}")
+                return True
+            else:
+                logger.error(f"Failed to connect WiFi: {ssid} (code {result.returncode})")
+                logger.error(f"stderr: {result.stderr.strip()}")
+                return False
+
+        except Exception as e:
+            logger.exception(f"Exception while connecting to WiFi: {e}")
             return False
-        
+            
                 
     def get_url()->str:
         if os.popen("hostname -I").read().strip() !='':
@@ -68,40 +77,77 @@ class DeviceCare:
             first_url = url_parts[0]
             parsed_url = urlparse(first_url)
             ip_camera = f"{parsed_url.scheme}://{parsed_url.hostname}:5000/video_feed" 
-            logging.info(f"YOUR URL: {ip_camera}")
+            logger.info(f"YOUR URL: {ip_camera}")
             return ip_camera
     
+    def is_internet_connected(host="8.8.8.8", port=53, timeout=3):
+        try:
+            socket.setdefaulttimeout(timeout)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+            return True
+        except socket.error as ex:
+            return False
+    
+    def is_eth0_connected():
+        try:
+            result = subprocess.run(['cat', '/sys/class/net/eth0/carrier'], capture_output=True, text=True)
+            return result.stdout.strip() == '1'
+        except Exception as e:
+            print(f"Error checking eth0: {e}")
+        return False
+        
+        
+    def is_wifi_connected():
+        cmd = "nmcli -t -f active,ssid dev wifi | grep 'yes:'"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        return result.returncode == 0  
+
+    def check_cameras_connection():
+        result = subprocess.run(['v4l2-ctl', '--list-devices'], stdout=subprocess.PIPE)
+        output = result.stdout.decode('utf-8')
+        devices = re.findall(r'(usb-xhci-hcd.*?):\s*(/dev/video\d+)', output)
+        return [int(device[1].split('/')[-1].replace('video', '')) for device in devices if 'usb-xhci-hcd' in device[0]]
+    
+    def find_digit(text):
+        match = re.search(r"\d+", text)
+        if match:
+            return int(match.group())
+        else:
+            return None
+    
     def reboot_device():
-        logging.info("The device is reboot now!")
+        logger.warning("The device is reboot now!")
         time.sleep(7)
         os.system("sudo reboot")
-    
-    def check_wifi_and_internet_connection()->bool:
+
+    def get_serial() -> str|None:
         try:
-            # Run the `iwconfig` command to check for WiFi status
-            result = subprocess.run(['iwconfig'], capture_output=True, text=True)
-            internet_check = DeviceCare.check_internet()
-            counter_reboot = 0 
-            if 'ESSID:"' in result.stdout and internet_check:
-                return True
-            else:
-                while True:
-                    connection = DeviceCare.wifi_connection_again()
-                    internet_check = DeviceCare.check_internet()
-                    logging.debug(f"connection repeat again: \t connect wifi: ,{connection}, internet: {internet_check}")
-                    if connection and internet_check:
-                        break
-                    if counter_reboot == 24:
-                        DeviceCare.reboot_device()
-                    counter_reboot +=1
-                    time.sleep(5)
-                return True
-        
+            with open('/proc/cpuinfo', 'r') as f:               # Access cpuinfo
+                for line in f:
+                    if line.startswith('Serial'):               # Access the line starts with the word "Serial"
+                        return line.strip().split(": ")[1]      # Get the vanished serial number
         except Exception as e:
-            print(f"An error occurred: {e}")
-
-
+            return None
+    
+    def get_mac_address(interface='wlan0'):
+        try:
+            result = subprocess.check_output(f"cat /sys/class/net/{interface}/address", shell=True)
+            return result.decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            return None
+    
+    def del_log_files():
+        # files_to_delete = glob.glob("*.log")
+        # for file_path in files_to_delete:
+        #     if os.path.exists(file_path):
+        #         os.remove(file_path)
+        if os.path.exists("app.log"):
+            os.remove("app.log")
+                
 if __name__ == '__main__':
-    # DeviceCare.check_wifi_connection()
-    print("hello world!")
+    # DeviceCare.Connection_wifi()
+    # print(DeviceCare.is_eth0_connected())
+    # print(DeviceCare.is_internet_connected())
+    # print(DeviceCare.is_wifi_connected())
+    # print(DeviceCare.Map_value(-105,-50,0,100))
     pass
