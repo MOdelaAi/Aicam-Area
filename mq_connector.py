@@ -778,10 +778,6 @@ class Mqtt_Connect(mqtt.Client):
         except:
             logger.error("something error call setting cameras api",exc_info=True)
             return
-
-    def format_value(self, valuesList) -> None:
-
-        return None
     
     def control_switch(self, relayNo, from_switch=None, detectObj=None):
         
@@ -800,7 +796,7 @@ class Mqtt_Connect(mqtt.Client):
                     continue
                 
                 self.Relay[item-1] = new_state
-                logger.info(f"Relay {item} turned {'ON' if new_state else 'OFF'} from {ppe_object.get(detectObj, 'Unknown')}")
+                # logger.info(f"Relay {item} turned {'ON' if new_state else 'OFF'} from {ppe_object.get(detectObj, 'Unknown')}")
 
                 outload_Relay.set_state(item, new_state)
                     
