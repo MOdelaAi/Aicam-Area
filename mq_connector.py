@@ -971,7 +971,7 @@ class Mqtt_Connect(mqtt.Client):
                     }
                     data = {
                         "key": self.device_key,
-                        "cameraNO": self.number_cam+1,
+                        "cameraNO": self.number_cam,
                     }
                     self.scraper.post(url_send_image, headers=headers, data=data, files=files)
                 else: 
@@ -1004,7 +1004,7 @@ class Mqtt_Connect(mqtt.Client):
             # Handle preset configurations (10-19)
             if camera_no is not None and detectObj != 0 and camera != 0:
                 frame_counts = valuesList[camera_no] if camera_no < len(valuesList) else []
-                
+
                 if detectObj == 1:
                     value = valuesList[-1]  # total
                 elif detectObj == 2:
@@ -1032,17 +1032,17 @@ class Mqtt_Connect(mqtt.Client):
                     if sensor_config['notifyInterval'] == 1: # Interval 1 ส่ง 1 ครั้ง
                         text = comparison(value,sensor_config['sensorValueLowLimit'],sensor_config['sensorValueHighLimit'])
                         if self.state_notification[sensorNo-1] != text and text =='high':
-                            send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no][detect_cond])
+                            send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no])
                             self.state_notification[sensorNo-1] = "high"
                             
                         elif self.state_notification[sensorNo-1] != text and text =='low':
-                            send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no][detect_cond])
+                            send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no])
                             self.state_notification[sensorNo-1] = "low"
                             
                     else:  # Interval etc. ตามเวลาที่กำหนด
                         if time.time() - sensor_config['notificationStartTime'] >= self.value_notification_options[str(sensor_config['notifyInterval'])]:
                             text = comparison(value,sensor_config['sensorValueLowLimit'],sensor_config['sensorValueHighLimit'])
-                            send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no][detect_cond])
+                            send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no])
                             sensor_config['notificationStartTime'] = time.time()
                             
                 elif sensor_config["timerControlStatus"] == 1 : # ส่งตามช่วงเวลา
@@ -1053,17 +1053,17 @@ class Mqtt_Connect(mqtt.Client):
                         if sensor_config['notifyInterval'] == 1: # Interval 1 ส่ง 1 ครั้ง
                             text = comparison(value,sensor_config['sensorValueLowLimit'],sensor_config['sensorValueHighLimit'])
                             if self.state_notification[sensorNo-1] != text and text =='high':
-                                send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no][detect_cond])
+                                send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no])
                                 self.state_notification[sensorNo-1] = "high"
                                 
                             elif self.state_notification[sensorNo-1] != text and text =='low':
-                                send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no][detect_cond])
+                                send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no])
                                 self.state_notification[sensorNo-1] = "low"
 
                         else:  # Interval etc. ตามเวลาที่กำหนด
                             if time.time() - sensor_config['notificationStartTime'] >= self.value_notification_options[str(sensor_config['notifyInterval'])]:
                                 text = comparison(value,sensor_config['sensorValueLowLimit'],sensor_config['sensorValueHighLimit'])
-                                send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no][detect_cond])
+                                send_notify(self.device_key,notiType,sensorNo,detectObj,value,text,image[camera_no])
                                 sensor_config['notificationStartTime'] = time.time()
 
         if detectd_sensor is not None:
@@ -1106,9 +1106,16 @@ class Mqtt_Connect(mqtt.Client):
                                 valueStatusSensor['notificationStartTime'] = time.time()
 
         # Take a Photo Send to Line
+        """ 
+        Frame structure:
+        all_frames = [
+            (cam1_frame),
+            (cam2_frame)
+        ]
+        """
         try:
             if self.number_cam !=0:
-                image_set = image[self.number_cam - 1][0]
+                image_set = image[self.number_cam - 1]
                 image_prepared = image_set.copy()
                 _, buffer = cv2.imencode('.jpg', image_prepared)
                 image_file = BytesIO(buffer)
@@ -1133,7 +1140,7 @@ class Mqtt_Connect(mqtt.Client):
                         self.peroid_notification_start_time = time.time()
                         
             if len(self.notification_sensorDetected) != 0:
-                if any(detection_buffer):
+                if detection_buffer is not None and any(detection_buffer): 
                     self.last_detected_time = time.time()
                     if not self.sent_person_detected and img_by_sensordetected[self.number_cam] is not None and correct_sensors[self.number_cam] == self.notification_sensorDetected[0]:
                         _, buffer = cv2.imencode('.jpg', img_by_sensordetected[self.number_cam])
