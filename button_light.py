@@ -2,6 +2,7 @@ from gpiozero import RGBLED, Button, LED
 import time
 import functools
 import yaml
+import threading
 from devicecare import DeviceCare
 from logger_config import setup_logger
 from device_register import register_device
@@ -9,21 +10,28 @@ from device_register import register_device
 logger = setup_logger(__name__)
     
 class outload_Relay():
-    outload_1 = LED(27)
-    outload_2 = LED(22) 
-    def detected_selected()->None:
-        outload_Relay.outload_1.on()
-        outload_Relay.outload_2.on()
+    relays = {
+        1: LED(27),
+        2: LED(22)
+        # เพิ่มได้อีก เช่น 3: LED(5)
+    }
+
+    @staticmethod
+    def set_state(relay_no: int, state: bool) -> None:
         
-    def not_detected_selected()->None:
-        outload_Relay.outload_1.off()
-        outload_Relay.outload_2.off()
+        relay = outload_Relay.relays.get(relay_no)  
+
+        if relay is not None:
+            print(f"[GPIO] Relay {relay_no} {'ON' if state else 'OFF'}")
+            relay.on() if state else relay.off()
+        else:
+            print(f"[WARNING] Relay {relay_no} not defined")
         
 # All button action
 class Button_Action:
     # Class constructor
     def __init__(self, btn_pin:int) -> None:
-        self.btn = Button(btn_pin)
+        self.btn = Button(btn_pin )
         self.press_time = 0
         self.hold_duration = 5
         self.held_duration = 0
@@ -63,6 +71,10 @@ class Button_Action:
             self.press_time = time.time()
 
         def button_released_action(state_light):
+            if self.press_time == 0:
+                return 
+
+        def button_released_action(state_light):
             self.held_duration = time.time() - self.press_time
             if self.held_duration > self.hold_duration:
                 state_light.put(1)
@@ -86,4 +98,6 @@ class Button_Action:
 if __name__ == '__main__':
     pass
         
+
+
 
