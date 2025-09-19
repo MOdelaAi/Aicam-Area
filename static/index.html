@@ -5,18 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Modela Ai IOT</title>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <link rel="stylesheet" href="static/styles.css?v=4" />
+  <link rel="stylesheet" href="static/styles.css?v=5" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Prompt&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
   <div class="main-layout">
     <!-- Header Section -->
     <div class="header">
-      <h1>Modela AI Camera Counting</h1>
+      <h1><i class="fa-solid fa-camera"></i> Modela AI Camera Counting</h1>
       <div class="datetime">
         <span class="live-indicator"></span>
+        <i class="fa-regular fa-clock"></i>
         วัน <span id="day"></span>
       </div>
     </div>
@@ -25,8 +27,8 @@
       <div class="testfullscreen">
         <video id="video" class="showvideostream" autoplay playsinline muted></video>
         <div id="no-camera-message" class="no-camera-message">ไม่มีกล้อง<span class="loading-dots"></span></div>
-        <button class="fullscreen-btn" id="fullscreenButton" onclick="toggleFullscreen()">🔍 เต็มหน้าจอ</button>
-        <button class="exit-fullscreen-btn" id="exitFullscreenButton" onclick="toggleFullscreen()">❌ ออกจากโหมดเต็มหน้าจอ</button>
+        <button class="fullscreen-btn" id="fullscreenButton" onclick="toggleFullscreen()"><i class="fa-solid fa-maximize"></i> เต็มหน้าจอ</button>
+        <button class="exit-fullscreen-btn" id="exitFullscreenButton" onclick="toggleFullscreen()"><i class="fa-solid fa-xmark"></i> ออกจากโหมดเต็มหน้าจอ</button>
       </div>
     </div>
 
@@ -40,55 +42,66 @@
         </select>
       </div>
 
-      <div class="draw-polygon">
-        <button class="popup-panel-btn" id="drawPolygonButton">✏️ วาดพื้นที่นับ</button>
-        <button class="clear-polygon-btn" id="clearPolygonButton" onclick="if(confirm('⚠️ คุณแน่ใจหรือไม่ว่าต้องการล้างพื้นที่นับทั้งหมด?')) { fetch('/clear_polygons', { method: 'POST' }).then(() => { alert('✅ พื้นที่นับถูกล้างแล้ว'); }).catch(err => { console.error('❌ ล้มเหลวในการล้างพื้นที่นับ:', err); alert('❌ ล้มเหลวในการล้างพื้นที่นับ'); }); }">🗑️ ล้างพื้นที่นับ</button>
-      </div>
+     <div class="draw-polygon">
+      <button class="popup-panel-btn" id="drawPolygonButton">
+        <i class="fa-solid fa-draw-polygon"></i> วาดพื้นที่นับ
+      </button>
+
+      <button class="clear-polygon-btn" id="clearPolygonButton"
+        onclick="if(confirm('⚠️ คุณแน่ใจต้องการล้างพื้นที่นับทั้งหมดหรือไม่?')) { 
+          fetch('/clear_polygons', { method: 'POST' })
+          .then(() => { alert('✅ พื้นที่นับถูกล้างแล้ว'); })
+          .catch(err => { 
+            console.error('❌ ล้มเหลวในการล้างพื้นที่นับ:', err); 
+            alert('❌ ล้มเหลวในการล้างพื้นที่นับ'); 
+          }); 
+        }">
+        <i class="fa-solid fa-trash"></i> ล้างพื้นที่นับ
+      </button>
     </div>
   </div>
 
   <!-- Pop-up moved outside main-layout -->
   <div id="capturePopup" class="popup-overlay">
     <div class="popup-content">
-      <span class="close-btn" id="closePopup">✖</span>
-      <h2>ภาพที่จับมา</h2>
-      <div class="popup-body">
-        <img id="capturedImage" alt="Captured snapshot" />
-        <canvas id="drawCanvas"></canvas>
-      </div>
-      <div class="popup-footer">
-        <button id="ResetPoint">Reset</button>
-        <button id="UndoPoint">Undo</button>
-        <button id="SavePolygon">Save</button>
-        <div id="DeleteButtons"></div>
-        <button id="SendPolygonData">Finish</button>  
-      </div>
-      <div class="polygoninfo">
-        <div class="polygoncount"> 0 </div>
-        <div class="pointcount"> 0 </div>
+      <h2>คลิกที่รูปภาพเพื่อกำหนดจุดวาดกรอบ</h2>
+      <span class="close-btn" id="closePopup">
+        <i class="fa-solid fa-xmark"></i>
+      </span>
+     <div class="popup-body">
+        <div class="canvas-with-buttons">
+          <div class="image-canvas-container fixed-size">
+            <img id="capturedImage" alt="Captured snapshot" width="640" height="360" />
+            <canvas id="drawCanvas" width="640" height="360"></canvas>
+          </div>
+          <div class="side-buttons">
+              <button id="ResetPoint" class="btn-base btn-neutral">
+                <i class="fa-solid fa-trash"></i> Reset
+              </button>
+              <button id="UndoPoint" class="btn-base btn-warning">
+                <i class="fa-solid fa-undo"></i> Undo
+              </button>
+              <button id="SavePolygon" class="btn-base btn-success">
+                <i class="fa-solid fa-floppy-disk"></i> Draw
+              </button>
+              <div id="DeleteButtons"></div>
+              <button id="SendPolygonData" class="btn-base btn-info">
+                <i class="fa-solid fa-paper-plane"></i> Finish
+              </button>
+            <div class="polygoninfo">
+              <div class="polygoncount">0</div>
+              <div class="pointcount">0</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
     let current_stream = {
-      selected_cam: 0,
-      cameras: [
-        {
-          id: 0,
-          polygons: [
-            { coord: [], seen: 0, name: "" },
-            { coord: [], seen: 0, name: "" }
-          ]
-        },
-        {
-          id: 1,
-          polygons: [
-            { coord: [], seen: 0, name: "" },
-            { coord: [], seen: 0, name: "" }
-          ]
-        }
-      ]
+      selected_cam_id: null,  // Changed from selected_cam index to camera ID
+      cameras: []
     };
 
     let pc;
@@ -101,8 +114,22 @@
     const canvas = document.getElementById("drawCanvas");
     const ctx = canvas.getContext("2d");
 
+
+    // ✅ FIXED: Get camera by array index (not ID)
+    function getCurrentCamera() {
+      return current_stream.cameras.find(c => c.id === current_stream.selected_cam_id);
+    }
+
+    // ✅ FIXED: Find camera by ID when needed
+    function findCameraById(id) {
+      return current_stream.cameras.find(c => c.id === id);
+    }
+
     // ---- WebRTC setup ----
-    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+    const config = {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      sdpSemantics: "unified-plan"
+    };
 
     async function restartStream() {
       if (isRestarting) return;
@@ -123,7 +150,7 @@
 
       try {
         const canvas = document.createElement("canvas");
-        canvas.width = 640; canvas.height = 480;
+        canvas.width = 640; canvas.height = 360;
         const stream = canvas.captureStream();
         const dummyTrack = stream.getVideoTracks()[0];
         pc.addTrack(dummyTrack);
@@ -131,11 +158,13 @@
         const offer = await pc.createOffer({ offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
 
+        const startTime = performance.now();
         const res = await fetch("/offer", {
           method: "POST",
           body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
           headers: { "Content-Type": "application/json" }
         });
+        console.log(`Signaling latency: ${performance.now() - startTime} ms`);
 
         const answer = await res.json();
         await pc.setRemoteDescription(answer);
@@ -145,11 +174,15 @@
       isRestarting = false;
     }
 
+    function getCurrentCamera() {
+      return current_stream.cameras.find(c => c.id === current_stream.selected_cam_id);
+    }
+
     function pushHistory() {
-      const camIndex = current_stream.selected_cam;
-      // deep copy of current cam state
-      const snapshot = JSON.parse(JSON.stringify(current_stream.cameras[camIndex]));
-      historyStack.push({ camIndex, snapshot, points: [...points] });
+      const cam = getCurrentCamera();
+      if (!cam) return;
+      const snapshot = JSON.parse(JSON.stringify(cam));
+      historyStack.push({ camIndex: current_stream.selected_cam, snapshot, points: [...points] });
     }
 
     async function startStream() {
@@ -161,7 +194,7 @@
 
       try {
         const canvas = document.createElement("canvas");
-        canvas.width = 1080; canvas.height = 720;
+        canvas.width = 640; canvas.height = 360;
         const stream = canvas.captureStream();
         const dummyTrack = stream.getVideoTracks()[0];
         pc.addTrack(dummyTrack);
@@ -169,11 +202,13 @@
         const offer = await pc.createOffer({ offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
 
+        const startTime = performance.now();
         const res = await fetch("/offer", {
           method: "POST",
           body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
           headers: { "Content-Type": "application/json" }
         });
+        console.log(`Signaling latency: ${performance.now() - startTime} ms`);
 
         const answer = await res.json();
         await pc.setRemoteDescription(answer);
@@ -182,56 +217,106 @@
       }
     }
 
+    // ✅ SIMPLIFIED: Just switch video stream directly
     async function sendSelection() {
-      const cam = parseInt(document.getElementById("cam").value, 10);
+      const selectedCameraId = current_stream.selected_cam_id;
 
-      console.log("📤 Sending frame selection:", cam);
+      console.log(`Switching to camera ID: ${selectedCameraId}`);
 
       try {
         const res = await fetch("/set_frame", {
           method: "POST",
-          body: JSON.stringify({ cam }),
+          body: JSON.stringify({ camera_id: selectedCameraId }),  // Send ID, not index
           headers: { "Content-Type": "application/json" }
         });
-
-        const text = await res.text();
-        console.log("✅ Frame selection response:", text);
-
-        await restartStream();
+        
+        if (res.ok) {
+          const responseData = await res.json();
+          console.log("Camera switched:", responseData);
+          await restartStream();
+        } else {
+          throw new Error(`Failed to switch camera: ${res.status}`);
+        }
+        
       } catch (err) {
-        console.error("❌ Frame selection failed", err);
+        console.error("Camera switch failed:", err);
       }
     }
 
-    // Open modal
-    document.getElementById("drawPolygonButton").addEventListener("click", async () => {
-      console.log("🎨 Attempting to open capture popup");
-
+    async function syncCameraData() {
       try {
-        // 🔄 Sync polygons from backend
-        const polyRes = await fetch("/polygons.json", { cache: "no-store" });
-        if (polyRes.ok) {
-          const data = await polyRes.json();
-          current_stream = data;
-          console.log("📂 Synced polygons from backend:", current_stream);
-        } else {
-          console.warn("⚠️ Failed to fetch polygons.json:", polyRes.status);
-        }
+        const res = await fetch(`/polygons.json?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to fetch polygons.json");
+        const data = await res.json();
+
+        current_stream.cameras = data.cameras || [];
+        // Backend now returns selected_cam_id instead of selected_cam index
+        current_stream.selected_cam_id = data.selected_cam_id || (data.cameras[0]?.id);
+
+        updateCameraDropdown();
+        
+        console.log("Synced camera data:", {
+          cameras: current_stream.cameras,
+          selected_cam_id: current_stream.selected_cam_id
+        });
+        
+        return true;
       } catch (err) {
-        console.warn("⚠️ Could not sync polygons:", err);
+        console.error("Failed to sync camera data:", err);
+        return false;
       }
+    }
+
+    // ✅ FIXED: Update camera dropdown with proper sync
+    function updateCameraDropdown() {
+      const camSelect = document.getElementById("cam");
+      camSelect.innerHTML = "";
+      
+      current_stream.cameras.forEach((cam) => {
+        const opt = document.createElement("option");
+        opt.value = cam.id;  // Use camera ID directly, not index
+        opt.textContent = `Camera ${cam.id}`;  // Show just the camera ID
+        if (cam.id === current_stream.selected_cam_id) opt.selected = true;
+        camSelect.appendChild(opt);
+      });
+    }
+
+    // Modified draw polygon button handler
+    document.getElementById("drawPolygonButton").addEventListener("click", async () => {
+      console.log("Opening polygon drawing modal");
+
+      // CRITICAL: Refresh camera data from backend before opening modal
+      console.log("🔄 Force refreshing camera data before opening polygon editor...");
+      const syncSuccess = await syncCameraData();
+      if (!syncSuccess) {
+        alert("Failed to sync camera data. The camera list might be outdated. Please refresh the page and try again.");
+        return;
+      }
+
+      // Now get the current camera - this should work correctly
+      const currentCam = getCurrentCamera();
+      console.log("Current camera after sync:", currentCam);
+      console.log("All cameras after sync:", current_stream.cameras);
+      
+      // Verify we have a valid camera
+      if (!currentCam) {
+        alert("❌ No camera found for current selection. Please check camera configuration.");
+        return;
+      }
+
+      console.log(`✅ Drawing polygons for camera ID: ${currentCam.id}`);
 
       const capturePopup = document.getElementById("capturePopup");
       const capturedImage = document.getElementById("capturedImage");
 
       if (!capturePopup || !capturedImage) {
-        alert("ข้อผิดพลาด: ไม่พบองค์ประกอบป๊อปอัพในหน้าเว็บ");
+        alert("Error: Popup elements not found");
         return;
       }
 
       try {
-        console.log("📸 Fetching image from /capture.jpg");
-        const res = await fetch(`/capture.jpg?fmt=jpg&w=1080&h=720&_=${Date.now()}`, {
+        console.log("Fetching image from /capture.jpg");
+        const res = await fetch(`/capture.jpg?fmt=jpg&w=640&h=360&_=${Date.now()}`, {
           method: "GET",
           cache: "no-store"
         });
@@ -251,32 +336,18 @@
 
         const img = document.getElementById("capturedImage");
         img.onload = function() {
-          const rect = img.getBoundingClientRect();
+          canvas.width = 640;
+          canvas.height = 360;
+          points = [];
+          drawAll();
 
-          canvas.width = rect.width;
-          canvas.height = rect.height;
-          canvas.style.width = rect.width + "px";
-          canvas.style.height = rect.height + "px";
-          canvas.style.left = img.offsetLeft + "px";
-          canvas.style.top = img.offsetTop + "px";
-          points = []; // reset drawing
-          drawAll();   // ✅ redraw polygons from backend
-          fetch("/save_polygons", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              camera_id: cam.id,
-              polygons: cam.polygons.filter(p => p.coord.length > 0)
-            })
-          }).then(r => r.json()).then(resp => {
-            console.log("✅ Polygon deletion persisted:", resp);
-          }).catch(err => {
-            console.error("❌ Failed to persist deletion:", err);
-          });
+          // Log which camera we're drawing polygons for
+          const activeCam = getCurrentCamera();
+          console.log(`✅ Drawing polygons for camera index ${current_stream.selected_cam}, REAL ID: ${activeCam?.id}`);
         };
       } catch (err) {
-        console.error("❌ Capture failed:", err);
-        alert("ไม่สามารถจับภาพได้: " + err.message);
+        console.error("Capture failed:", err);
+        alert("Failed to capture image: " + err.message);
       }
     });
 
@@ -310,8 +381,8 @@
     function drawAll() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const camIndex = current_stream.selected_cam;
-      const cam = current_stream.cameras[camIndex];
+      const cam = getCurrentCamera();
+      if (!cam) return;
       const polys = cam.polygons.filter(p => p.coord.length > 0);
 
       const colors = [
@@ -382,7 +453,7 @@
       };
       polys.forEach((_, idx) => {
         const btn = document.createElement("button");
-        btn.textContent = `Delete Polygon ${idx + 1}`;
+        btn.innerHTML = `<i class="fa-solid fa-delete-left"></i> Delete Polygon ${idx + 1}`;
 
         btn.onmouseenter = () => {
           highlightedPolygon = idx;
@@ -391,6 +462,9 @@
 
         btn.onclick = () => {
           pushHistory();
+          const cam = getCurrentCamera();
+          if (!cam) return;
+
           cam.polygons[idx] = { coord: [], seen: 0, name: "" };
           highlightedPolygon = null;
           console.log(`🗑️ Deleted polygon ${idx + 1} on camera ${cam.id}`);
@@ -414,32 +488,6 @@
       });
     } 
 
-    function drawPoints() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (points.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-          ctx.lineTo(points[i].x, points[i].y);
-        }
-        ctx.strokeStyle = "yellow";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      points.forEach((p, i) => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = "red";
-        ctx.fill();
-        ctx.fillText(i + 1, p.x + 8, p.y - 8);
-      });
-
-      document.querySelector(".pointcount").textContent = points.length;
-    }
-  
-
     // Add point on click
     canvas.addEventListener("click", (e) => {
       pushHistory();
@@ -453,8 +501,7 @@
     // ================ Button Handlers =================
     document.getElementById("ResetPoint").addEventListener("click", () => {
       pushHistory();
-      const camIndex = current_stream.selected_cam;
-      const cam = current_stream.cameras[camIndex];
+      const cam = getCurrentCamera();
       points = [];
       cam.polygons = [
         { coord: [], seen: 0, name: "" },
@@ -472,8 +519,7 @@
     document.getElementById("SavePolygon").addEventListener("click", () => {
       if (points.length > 2) {
         pushHistory();
-        const camIndex = current_stream.selected_cam;
-        const cam = current_stream.cameras[camIndex];
+        const cam = getCurrentCamera();
 
         const existingCount = cam.polygons.filter(p => p.coord.length > 0).length;
         if (existingCount >= 2) {
@@ -498,10 +544,16 @@
         alert("Need at least 3 points to form a polygon!");
       }
     });
+
     // Finish: prepare data and send immediately
     document.getElementById("SendPolygonData").addEventListener("click", async () => {
-      const camIndex = current_stream.selected_cam;
-      const cam = current_stream.cameras[camIndex];
+      const cam = getCurrentCamera();
+
+      if (!cam) {
+        alert("⚠️ No camera selected!");
+        console.error("❌ getCurrentCamera() returned null/undefined");
+        return;
+      }
 
       // Collect only polygons with coords
       const preparedData = {
@@ -509,36 +561,54 @@
         polygons: cam.polygons.filter(p => p.coord.length > 0)
       };
 
+      // Debug logging
+      console.log("📊 DEBUG - Current camera:", cam);
+      console.log("📊 DEBUG - Prepared data:", preparedData);
+      console.log("📊 DEBUG - Selected cam index:", current_stream.selected_cam);
+      console.log("📊 DEBUG - All cameras:", current_stream.cameras);
+
       if (preparedData.polygons.length === 0) {
         alert("⚠️ No polygons to send!");
         return;
       }
 
-      console.log("📦 Prepared polygon data:", preparedData);
+      const confirmSend = confirm("คุณต้องการส่ง Polygon ทั้งหมดจริงหรือไม่?");
+      if (!confirmSend) {
+        console.log("🚫 User canceled sending polygons");
+        return;
+      }
 
       try {
+        console.log("📤 Sending polygon data:", JSON.stringify(preparedData, null, 2));
+        
         const res = await fetch("/save_polygons", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(preparedData)
         });
 
+        const responseText = await res.text();
+        console.log("📥 Raw server response:", responseText);
+
         if (!res.ok) {
-          throw new Error(`Server error ${res.status}`);
+          throw new Error(`Server error ${res.status}: ${responseText}`);
         }
 
-        const result = await res.text();
-        console.log("✅ Backend response:", result);
-        alert("Polygons sent successfully!");
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseErr) {
+          console.error("Failed to parse response as JSON:", parseErr);
+          throw new Error(`Invalid response format: ${responseText}`);
+        }
 
-        // Reset after sending
-        // points = [];
-        // savedPolygons = [];
-        // cam.polygons = [
-        //   { coord: [], seen: 0, name: "" },
-        //   { coord: [], seen: 0, name: "" }
-        // ];
-        // drawAll();
+        console.log("✅ Parsed server response:", result);
+
+        if (result.ok) {
+          alert("Polygons sent successfully!");
+        } else {
+          throw new Error(result.error || "Unknown server error");
+        }
 
       } catch (err) {
         console.error("❌ Failed to send polygons:", err);
@@ -546,20 +616,40 @@
       }
     });
 
+    // Camera selection handler - ensure backend sync
     document.getElementById("cam").addEventListener("change", async (e) => {
-      const camId = parseInt(e.target.value, 10);
-      current_stream.selected_cam = camId;
-
-      console.log("📷 Switched to camera:", camId);
-
-      // clear unfinished points
-      points = [];
-
-      // redraw canvas with polygons for this camera
-      drawAll();
-
-      // tell backend to switch stream
-      await sendSelection();
+      const newCameraId = parseInt(e.target.value, 10);  // This is now a camera ID
+      const previousCameraId = current_stream.selected_cam_id;
+      
+      console.log(`Camera selection changed: ${previousCameraId} → ${newCameraId}`);
+      
+      current_stream.selected_cam_id = newCameraId;  // Store camera ID
+      
+      try {
+        const res = await fetch("/set_frame", {
+          method: "POST",
+          body: JSON.stringify({ camera_id: newCameraId }),  // Send camera ID
+          headers: { "Content-Type": "application/json" }
+        });
+        
+        if (!res.ok) {
+          throw new Error(`Backend rejected camera selection: ${res.status}`);
+        }
+        
+        const responseData = await res.json();
+        console.log("Backend confirmed camera switch:", responseData);
+        
+        await restartStream();
+        
+      } catch (err) {
+        console.error("Camera selection failed:", err);
+        
+        // Revert on failure
+        current_stream.selected_cam_id = previousCameraId;
+        e.target.value = previousCameraId;
+        
+        alert(`Failed to switch camera: ${err.message}`);
+      }
     });
 
     // ---- UI utilities ----
@@ -617,28 +707,27 @@
       }
       const last = historyStack.pop();
       if (last.camIndex !== current_stream.selected_cam) {
-        // optional: skip if different camera
         console.warn("Undo skipped: different camera");
         return;
       }
-
-      current_stream.cameras[last.camIndex] = last.snapshot;
-      points = last.points;
-      drawAll();
+      const cam = getCurrentCamera();
+      if (cam) {
+        Object.assign(cam, last.snapshot);
+        points = last.points;
+        drawAll();
+      }
     }
-
 
     // ---- Init ----
-    function attachEvents() {
-      document.getElementById("cam").addEventListener("change", sendSelection);
-      document.getElementById("UndoPoint").addEventListener("click", undoAction);
-    }
-
     async function initialize() {
-      attachEvents();
       await startStream();
       setInterval(updateDateTime, 1000);
       updateDateTime();
+
+      await syncCameraData();
+
+      // Send initial selection to ensure backend alignment
+      await sendSelection();
     }
 
     // Start

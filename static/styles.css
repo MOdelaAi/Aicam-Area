@@ -17,8 +17,8 @@
   --gold-a45: rgba(255,193,7,.45);
   
   /* Text Colors */
-  --txt: #e0e0e0;
-  --txt-dim: #b0b0b0;
+  --txt: #ffffff;
+  --txt-dim: #e2e2e2;
   
   /* Status Colors */
   --ok: #22c55e;
@@ -69,13 +69,19 @@ html, body {
 }
 
 body {
-  background: linear-gradient(135deg, var(--bg-grad-1) 0%, var(--bg-grad-2) 50%, var(--bg-grad-3) 100%);
+  background: linear-gradient(
+    135deg, 
+    var(--bg-grad-1) 0%, 
+    var(--bg-grad-2) 50%, 
+    var(--bg-grad-3) 100%
+  );
   font-family: "Prompt", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
   color: var(--txt);
   position: relative;
   display: flex;
   flex-direction: column;
 }
+
 
 body::before {
   content: "";
@@ -90,18 +96,26 @@ body::before {
 
 /* ===== LAYOUT =========================================== */
 .main-layout {
-  display: grid;
-  grid-template-rows: auto auto auto auto;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  gap: 8px;
+  gap: 16px;
   padding: 12px;
   max-width: 1400px;
   margin: 0 auto;
+  margin-left: auto;
+}
+
+button i {
+  margin-right: 6px;
+  font-size: 14px;
 }
 
 /* ===== HEADER =========================================== */
 .header {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 16px 20px;
   background: rgba(45,45,45,.9);
   border-radius: var(--radius-lg);
@@ -158,15 +172,14 @@ body::before {
   justify-content: center;
   align-items: center;
   /* Set container to accommodate fixed video size */
-  min-height: calc(720px + 32px); /* 720px + padding */
-  overflow: auto;
+  /* overflow: auto; */
 }
 
 .testfullscreen {
   position: relative;
   /* Set exact dimensions for the video container */
-  width: 1080px;
-  height: 720px;
+  min-width: 640px;
+  min-height: 360px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -176,8 +189,8 @@ body::before {
 
 .showvideostream {
   /* Fixed dimensions - exactly 1080x720 */
-  width: 1080px;
-  height: 720px;
+  width: 640px;
+  height: 360px;
   max-width: none;
   max-height: none;
   /* Prevent any scaling or aspect ratio changes */
@@ -194,15 +207,6 @@ body::before {
   transform: scale(1.01);
   box-shadow: 0 10px 30px rgba(0,0,0,.5);
   border-color: rgba(255,193,7,.60);
-}
-
-.showvideostream_fullscreen {
-  width: 100vw;
-  height: 100vh;
-  object-fit: contain;
-  background: #000;
-  max-width: none;
-  max-height: none;
 }
 
 .showvideostream_fullscreen {
@@ -299,10 +303,45 @@ body::before {
   box-shadow: 0 0 0 3px var(--gold-a30);
 }
 
-.draw-polygon {
-  display: flex;
+.draw-polygon button {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.draw-polygon button i {
+  font-size: 15px;
+}
+
+/* ปุ่มวาด */
+.popup-panel-btn {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(34,197,94,.35);
+}
+
+.popup-panel-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(34,197,94,.5);
+}
+
+/* ปุ่มล้าง */
+.clear-polygon-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(239,68,68,.35);
+}
+
+.clear-polygon-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(239,68,68,.5);
 }
 
 /* ===== BUTTON SYSTEM ==================================== */
@@ -346,11 +385,10 @@ body::before {
 
 /* Button variants */
 .btn-primary {
-  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-200) 100%);
-  color: #2c2c2c;
-  box-shadow: var(--shadow-gold);
+  background: linear-gradient(135deg, #fff176 0%, #ffeb3b 100%);
+  color: #333; /* ข้อความดำบนปุ่มเหลือง */
+  box-shadow: 0 4px 12px rgba(255,235,59,.4);
 }
-
 .btn-primary:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-gold-hover);
@@ -363,9 +401,9 @@ body::before {
 }
 
 .btn-success {
-  background: linear-gradient(135deg, var(--ok) 0%, var(--ok-dark) 100%);
+  background: linear-gradient(135deg, #6ee7b7 0%, #22c55e 100%);
   color: #fff;
-  box-shadow: 0 4px 15px rgba(34,197,94,.25);
+  box-shadow: 0 4px 12px rgba(34,197,94,.4);
 }
 
 .btn-success:hover {
@@ -375,9 +413,9 @@ body::before {
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, var(--bad) 0%, #ff5722 100%);
+  background: linear-gradient(135deg, #fca5a5 0%, #ef4444 100%);
   color: #fff;
-  box-shadow: 0 4px 15px rgba(239,68,68,.25);
+  box-shadow: 0 4px 12px rgba(239,68,68,.4);
 }
 
 .btn-danger:hover {
@@ -387,9 +425,9 @@ body::before {
 }
 
 .btn-warning {
-  background: linear-gradient(135deg, var(--warning) 0%, var(--warning-dark) 100%);
+  background: linear-gradient(135deg, #fcd34d 0%, #f59e0b 100%);
   color: #fff;
-  box-shadow: 0 4px 15px rgba(245,158,11,.25);
+  box-shadow: 0 4px 12px rgba(245,158,11,.4);
 }
 
 .btn-warning:hover {
@@ -399,11 +437,9 @@ body::before {
 }
 
 .btn-info {
-  background: linear-gradient(135deg, var(--info) 0%, var(--info-dark) 100%);
+  background: linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 100%);
   color: #fff;
-  box-shadow: 0 4px 15px rgba(139,92,246,.25);
-  font-weight: 700;
-  padding: 14px 24px;
+  box-shadow: 0 4px 12px rgba(139,92,246,.4);
 }
 
 .btn-info:hover {
@@ -444,154 +480,242 @@ body::before {
 }
 
 /* Apply button classes to existing elements */
-.popup-panel-btn { @extend .btn-base, .btn-success; }
-.clear-polygon-btn { @extend .btn-base, .btn-danger; }
-.popup-footer button { @extend .btn-base, .btn-primary; margin: 0 5px; min-width: 80px; }
+.popup-panel-btn {
+  composes: btn-base btn-success;
+}
 
-#ResetPoint { @extend .btn-base, .btn-neutral; }
-#UndoPoint { @extend .btn-base, .btn-warning; }
-#SavePolygon { @extend .btn-base, .btn-success; }
-#SendPolygonData { @extend .btn-base, .btn-info; }
+.clear-polygon-btn {
+  composes: btn-base btn-danger;
+}
+
+.popup-footer button {
+  composes: btn-base btn-primary;
+  margin: 0 5px;
+  min-width: 80px;
+}
+
+#ResetPoint {
+  composes: btn-base btn-neutral;
+}
+
+#UndoPoint {
+  composes: btn-base btn-warning;
+}
+
+#SavePolygon {
+  composes: btn-base btn-success;
+}
+
+#SendPolygonData {
+  composes: btn-base btn-info;
+}
 
 /* Fullscreen buttons */
-.fullscreen-btn, .exit-fullscreen-btn{
-  position: fixed; bottom: 20px; right: 20px;
-  background: linear-gradient(135deg, var(--gold) 0%, #ff9800 100%);
-  color: #2c2c2c; border: none; padding: 12px 16px; cursor: pointer; z-index: 9999;
-  border-radius: 12px; font-weight: 700; font-size: 13px; letter-spacing:.2px;
-  transition: transform .12s ease, box-shadow .2s ease;
-  box-shadow: 0 6px 20px rgba(255,193,7,.40);
+.fullscreen-btn, .exit-fullscreen-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: linear-gradient(135deg, var(--gold) 90%, #b9b9b9 100%); /* เทาเข้ม */
+  color: #fff;  /* ตัวอักษรขาว */
+  border: none;
+  padding: 12px 18px;
+  cursor: pointer;
+  z-index: 9999;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: .3px;
+  transition: transform .12s ease, box-shadow .2s ease, background .2s ease;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
 }
-.fullscreen-btn:hover, .exit-fullscreen-btn:hover{
+
+.fullscreen-btn:hover, .exit-fullscreen-btn:hover {
   transform: translateY(-2px); 
-  box-shadow: 0 8px 25px rgba(255,193,7,.55);
+  box-shadow: 0 8px 25px rgba(255,193,7,.6);
+  filter: brightness(1.15);
 }
-.fullscreen-btn:active, .exit-fullscreen-btn:active{transform: translateY(0)}
-.exit-fullscreen-btn{
-  background:linear-gradient(135deg,#ff5722 0%, #d32f2f 100%); 
-  color:#fff; 
-  display:none;
+
+.exit-fullscreen-btn {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff1744 100%);
+  color: #fff;
+  display: none;
 }
 
 /* ===== POPUP SYSTEM ===================================== */
+/* Popup overlay (full screen, centered) */
+.popup-overlay {
+  display: none;
+  position: fixed; 
+  top: 0; 
+  left: 0; 
+  width: 100vw; 
+  min-height: 100vh; 
+  background: rgba(0,0,0,0.85); /* Darker overlay for better contrast */
+  z-index: 10000; 
+  justify-content: center; 
+  align-items: center; 
+  overflow-y: auto; 
+  box-sizing: border-box; 
+  backdrop-filter: blur(8px); /* Add blur for modern effect */
+} 
+
+.popup-content { 
+  position: relative; 
+  background: linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%); /* Gradient background */
+  border-radius: var(--radius-lg); 
+  padding: 30px; /* Increased padding */
+  width: auto; 
+  max-width: 95vw; /* Constrain width */
+  max-height: 95vh; 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  box-shadow: var(--shadow-3); /* Stronger shadow */
+  border: 1px solid var(--gold-a30); 
+  overflow-y: auto; 
+  animation: popupFadeIn 0.3s ease-out; /* Add entrance animation */
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.popup-content h2 {
+  margin: 0 0 20px 0;
+  font-size: 24px;
+  color: var(--gold);
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(255,193,7,0.3);
+}
+
 .popup-body {
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start; /* Align to top */
+  position: relative;
   width: 100%;
-  height: 100%;
-  position: relative; /* Added for proper canvas positioning */
-  overflow: hidden; /* Prevent scrollbars from canvas positioning */
+  padding: 10px;
 }
 
-/* Enhanced image styling for consistent sizing */
-.popup-body img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  border-radius: 6px;
-  display: block; /* Remove any inline spacing */
-  box-shadow: 0 4px 15px rgba(0,0,0,.3);
+.canvas-with-buttons {
+  display: flex;
+  align-items: flex-start;   /* align to top of canvas */
+  gap: 20px;                 /* more space between canvas and buttons */
+  width: 100%;
+  max-width: 1100px; /* Limit width for large screens */
+}
+
+.image-canvas-container {
+  flex: 0 0 auto;            /* fixed size for the canvas */
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
   border: 2px solid var(--gold-a30);
+}
+
+.image-canvas-container img {
+  display: block;
+  width: 640px; /* Match showvideostream width */
+  height: 360px; /* Match showvideostream height */
+  object-fit: cover; /* Ensure image fits without distortion */
+  background: #000;
+}
+
+.image-canvas-container canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 640px; /* Match showvideostream width */
+  height: 360px; /* Match showvideostream height */
+  pointer-events: auto;
+  cursor: crosshair;
+  z-index: 10;
+}
+
+.side-buttons {
+  display: flex;
+  flex-direction: column;    /* stack vertically */
+  gap: 12px;                 /* spacing between buttons */
+  align-items: stretch;   /* stretch buttons to full width */
+  min-width: 180px; /* Minimum width for button area */
+  padding: 15px;
+  background: rgba(45,45,45,0.6);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--gold-a20);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.side-buttons button {
+  padding: 12px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  height: 44px;
+  cursor: pointer;
+  transition: all var(--transition-smooth);
+  font-family: "Prompt", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  width: 100%;
+  box-shadow: 0 3px 10px rgba(0,0,0,.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .close-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 15px;
+  right: 15px;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 24px; /* bigger for Font Awesome */
   color: var(--gold);
-  transition: color var(--transition-fast);
+  transition: all var(--transition-smooth);
+  z-index: 10001; /* stay above content */
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,193,7,0.1);
 }
 
 .close-btn:hover {
   color: var(--gold-200);
-}
-
-.popup-body {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-}
-
-.popup-body img {
-  max-width: 100%;
-  max-height: 100%;
-  aspect-ratio: 3 / 2;
-  object-fit: contain;
-  border-radius: 6px;
-}
-
-#drawCanvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: auto;
-  cursor: crosshair;
-  z-index: 10;
-  
-  /* Ensure canvas doesn't interfere with layout */
-  max-width: 100%;
-  max-height: 100%;
-  
-  /* Smooth rendering */
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: optimize-contrast;
-  image-rendering: crisp-edges;
-  
-  /* Prevent blur on high DPI displays */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-.popup-footer {
-  margin-top: auto; /* push it to the bottom */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-  padding-top: 12px;
-}
-
-.popup-footer button {
-  padding: 8px 16px;
-  font-size: 13px;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  height: 40px;
-  cursor: pointer;
-  transition: all var(--transition-smooth);
-  font-family: "Prompt", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  min-width: 90px;
-  box-shadow: 0 3px 10px rgba(0,0,0,.25);
+  background: rgba(255,193,7,0.2);
+  transform: rotate(90deg);
 }
 
 /* Delete buttons container */
 #DeleteButtons {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   margin: 15px 0;
   padding: 15px;
-  background: rgba(30,30,30,.5);
+  background: rgba(30,30,30,0.7);
   border-radius: var(--radius-md);
   border: 1px solid var(--gold-a20);
+  width: 100%;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);
 }
 
 #DeleteButtons button {
   background: linear-gradient(135deg, var(--bad) 0%, var(--bad-dark) 100%);
   color: #fff;
-  padding: 8px 16px;
+  padding: 10px 16px;
   font-size: 13px;
-  min-width: auto;
+  width: calc(50% - 5px); /* Two buttons per row */
   box-shadow: 0 3px 10px rgba(239,68,68,.2);
   border: none;
   border-radius: var(--radius-sm);
@@ -599,25 +723,35 @@ body::before {
   cursor: pointer;
   transition: all var(--transition-smooth);
   font-family: "Prompt", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 #DeleteButtons button:hover {
   background: linear-gradient(135deg, var(--bad-dark) 0%, #991b1b 100%);
   box-shadow: 0 6px 20px rgba(239,68,68,.35);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+}
+
+#DeleteButtons button i {
+  font-size: 14px;
 }
 
 /* Polygon info section */
 .polygoninfo {
   display: flex;
-  gap: 20px;
+  gap: 30px;
   justify-content: center;
   align-items: center;
-  margin-top: 15px;
-  padding: 10px 20px;
-  background: rgba(45,45,45,.8);
+  margin-top: 20px;
+  padding: 15px 25px;
+  background: rgba(45,45,45,0.8);
   border-radius: var(--radius-md);
-  border: 1px solid var(--gold-a20);
+  border: 1px solid var(--gold-a30);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  width: 100%;
 }
 
 .polygoncount, 
@@ -625,52 +759,97 @@ body::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  font-weight: 600;
+  gap: 6px;
+  font-weight: 700;
   color: var(--txt);
 }
 
 .polygoncount::before {
   content: "Polygons";
-  font-size: 12px;
+  font-size: 13px;
   color: var(--txt-dim);
   font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .pointcount::before {
   content: "Points";
-  font-size: 12px;
+  font-size: 13px;
   color: var(--txt-dim);
   font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .polygoncount {
   color: var(--ok);
-  font-size: 18px;
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(34,197,94,0.5);
 }
 
 .pointcount {
   color: var(--gold);
-  font-size: 18px;
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(255,193,7,0.5);
 }
 
-.image-canvas-container {
-  position: relative;
-  display: inline-block;
-  line-height: 0; /* Remove any text baseline spacing */
+/* Responsive adjustments for popup */
+@media (max-width: 900px) {
+  .canvas-with-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .side-buttons {
+    width: 100%;
+    max-width: 500px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .side-buttons button {
+    flex: 1 0 calc(50% - 10px);
+    max-width: calc(50% - 10px);
+  }
+  
+  #DeleteButtons button {
+    width: 100%;
+  }
 }
 
-.image-canvas-container img {
-  display: block;
-  max-width: 100%;
-  height: auto;
-}
-
-.image-canvas-container canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: auto;
+@media (max-width: 600px) {
+  .popup-content {
+    padding: 20px;
+  }
+  
+  .popup-content h2 {
+    font-size: 20px;
+  }
+  
+  .image-canvas-container img,
+  .image-canvas-container canvas {
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+    aspect-ratio: 16/9;
+  }
+  
+  .side-buttons button {
+    flex: 1 0 100%;
+    max-width: 100%;
+  }
+  
+  .polygoninfo {
+    gap: 20px;
+    padding: 12px 15px;
+  }
+  
+  .polygoncount, 
+  .pointcount {
+    font-size: 18px;
+  }
 }
 
 /* ===== ANIMATIONS ======================================= */
@@ -688,185 +867,4 @@ body::before {
 @keyframes button-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
-}
-
-/* ===== RESPONSIVE DESIGN =============================== */
-@media (max-width: 768px) {
-  .main-layout {
-    padding: 8px;
-    gap: 6px;
-    min-height: auto;
-  }
-  
-  .header {
-    padding: 12px 16px;
-  }
-  
-  .header h1 {
-    font-size: 18px;
-  }
-  
-  .datetime {
-    font-size: 12px;
-    padding: 4px 8px;
-  }
-  
-  .video-container {
-    padding: 12px;
-    min-height: 300px;
-  }
-  
-  .controls-container {
-    padding: 10px;
-  }
-  
-  .select-group {
-    flex-direction: column;
-    gap: 6px;
-  }
-  
-  .select-group label {
-    font-size: 13px;
-  }
-  
-  .select-group select {
-    padding: 8px 12px;
-    font-size: 13px;
-    min-width: 160px;
-  }
-  
-  .fullscreen-btn, 
-  .exit-fullscreen-btn {
-    bottom: 12px;
-    right: 12px;
-    padding: 10px 14px;
-    font-size: 12px;
-  }
-
-  .btn-base {
-    padding: 10px 16px;
-    font-size: 13px;
-    min-height: 40px;
-  }
-  
-  .draw-polygon {
-    flex-direction: column;
-    gap: 8px;
-    align-items: stretch;
-  }
-  
-  .popup-panel-btn,
-  .clear-polygon-btn {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  #DeleteButtons {
-    flex-direction: column;
-  }
-  
-  #DeleteButtons button {
-    width: 100%;
-    justify-content: center;
-  }
-
-    .popup-content {
-    max-width: 95vw;
-    max-height: 95vh;
-    padding: 15px;
-  }
-  
-  .popup-body {
-    width: 100%;
-    height: auto;
-    min-height: 300px;
-  }
-  
-  .popup-body img {
-    max-width: 100%;
-    max-height: 70vh; /* Ensure image doesn't get too large on mobile */
-  }
-  
-  #drawCanvas {
-    /* Ensure canvas is properly sized on mobile */
-    max-width: 100%;
-    max-height: 70vh;
-  }
-}
-
-@media (max-width: 480px) {
-  .main-layout {
-    padding: 6px;
-    gap: 4px;
-  }
-  
-  .video-container {
-    min-height: 250px;
-    padding: 8px;
-  }
-  
-  .controls-container {
-    padding: 8px;
-    gap: 8px;
-  }
-
-  .btn-base {
-    padding: 8px 14px;
-    font-size: 12px;
-    min-height: 36px;
-  }
-  
-  .popup-footer {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .popup-footer button {
-    width: 100%;
-    margin: 0;
-  }
-
-  .popup-content {
-    max-width: 98vw;
-    max-height: 98vh;
-    padding: 12px;
-  }
-  
-  .popup-body img {
-    max-height: 60vh;
-  }
-  
-  #drawCanvas {
-    max-height: 60vh;
-  }
-}
-
-/* Loading state for image */
-.popup-body img[src=""] {
-  display: none;
-}
-
-.popup-body.loading::before {
-  content: "Loading image...";
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 200px;
-  background: rgba(45,45,45,.8);
-  border: 2px dashed var(--gold-a30);
-  border-radius: var(--radius-md);
-  color: var(--txt-dim);
-  font-size: 16px;
-}
-
-/* Canvas drawing feedback */
-#drawCanvas.drawing {
-  cursor: crosshair;
-}
-
-#drawCanvas:hover {
-  /* Subtle visual feedback when hovering over canvas */
-  filter: brightness(1.05);
 }
