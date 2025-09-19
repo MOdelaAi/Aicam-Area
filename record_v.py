@@ -1,21 +1,11 @@
-# record_v.py
-
 import cv2
-import time
 import os
+import time
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict, Any
 from logger_config import setup_logger
 
 logger = setup_logger(__name__)
-
-""" 
-Frame structure:
-all_frames = [
-    (cam1_frame),
-    (cam2_frame)
-]
-"""
 
 class MultiCameraRecorder:
     def __init__(
@@ -23,36 +13,30 @@ class MultiCameraRecorder:
         cams,
         video_dir: str = "/home/user/video",
         fourcc: str = "mp4v",
-        file_duration: int = 60,         
-        frame_size: Tuple[int, int] = (0, 0),  # (0,0) => autosize from first frame
-        fps: int = 5,                    
-        max_storage_bytes: int = 10 * 1024 * 1024 * 1024,  # 10 GB
-        idle_close_seconds: int = 10,    # close writer if no frames for N seconds
+        frame_size: Tuple[int, int] = (0, 0),
+        fps: int = 16,
+        max_frames: int = 1000,   # rotate after N frames
+        max_storage_bytes: int = 10 * 1024 * 1024 * 1024,
     ):
         self.video_dir = video_dir
         os.makedirs(self.video_dir, exist_ok=True)
 
-        self.file_duration = file_duration
         self._configured_frame_size = frame_size
         self.fps = fps
+        self.max_frames = max_frames
         self.MAX_STORAGE_BYTES = max_storage_bytes
-        self.idle_close_seconds = idle_close_seconds
+
 
         self.fourcc = cv2.VideoWriter_fourcc(*fourcc)
         self.cameras = cams
 
-        # writers & state per cam
+        # Writers & state per cam
         self.out_writers: Dict[int, Optional[cv2.VideoWriter]] = {}
-        self.start_times: Dict[int, float] = {}
-        self.last_write_times: Dict[int, float] = {}
-        self.last_frame_ts: Dict[int, float] = {}
         self.frame_size_by_cam: Dict[int, Tuple[int, int]] = {}
-
-        # Frame timing control for proper duration
-        self.frame_interval = 1.0 / self.fps  # Exact time between frames
+        self.frame_counts: Dict[int, int] = {}  # frames written per file
+        self.start_times: Dict[int, float] = {}
 
     # ---------- path helpers ----------
-
     def _cam_root(self, cam_index: int) -> str:
         cam_id = cam_index + 1
         root = os.path.join(self.video_dir, f"cam_{cam_id}")
@@ -69,7 +53,6 @@ class MultiCameraRecorder:
         return os.path.join(folder, fname)
 
     # ---------- storage management ----------
-
     def _list_all_videos(self) -> list:
         videos = []
         try:
@@ -87,13 +70,7 @@ class MultiCameraRecorder:
         return videos
 
     def _total_size(self) -> int:
-        total = 0
-        for fpath in self._list_all_videos():
-            try:
-                total += os.path.getsize(fpath)
-            except Exception:
-                pass
-        return total
+        return sum(os.path.getsize(f) for f in self._list_all_videos() if os.path.exists(f))
 
     def _delete_oldest_file(self):
         files = self._list_all_videos()
@@ -107,51 +84,36 @@ class MultiCameraRecorder:
             logger.error(f"[Recorder] Failed to delete {oldest}: {e}", exc_info=True)
 
     # ---------- writer lifecycle ----------
-
     def _ensure_cam_ready(self, cam_index: int, sample_frame: Optional[Any]):
-        # Create camera directory
-        _ = self._cam_root(cam_index)
-
-        # Set frame size if not already set
         if cam_index not in self.frame_size_by_cam:
             if self._configured_frame_size in [(0, 0), None] and sample_frame is not None:
                 h, w = sample_frame.shape[:2]
                 self.frame_size_by_cam[cam_index] = (w, h)
             else:
                 self.frame_size_by_cam[cam_index] = (
-                    self._configured_frame_size if self._configured_frame_size not in [(0, 0), None]
-                    else (640, 480)
+                    self._configured_frame_size
+                    if self._configured_frame_size not in [(0, 0), None]
+                    else (640, 360)
                 )
 
-        self._open_writer(cam_index)
+        if cam_index not in self.out_writers or self.out_writers[cam_index] is None:
+            self._open_writer(cam_index)
 
     def _open_writer(self, cam_index: int):
-        sz = self.frame_size_by_cam.get(cam_index, (640, 480))
+        sz = self.frame_size_by_cam.get(cam_index, (640, 360))
         path = self._file_path(cam_index)
-        
-        self.out_writers[cam_index] = cv2.VideoWriter(path, self.fourcc, self.fps, sz)
-        self.start_times[cam_index] = time.time()
-        self.last_write_times[cam_index] = time.time()
-        
-        logger.info(f"[Recorder][cam{cam_index+1}] Opened {path} @ {self.fps} fps")
+
+        self.out_writers[cam_index] = cv2.VideoWriter(path, self.fourcc, float(self.fps), sz)
+        self.frame_counts[cam_index] = 0
+        self.start_times[cam_index] = time.time()   # <--- added
+        logger.info(f"[Recorder][cam{cam_index+1}] Opened {path} @ {self.fps} fps, size={sz}")
 
     def _rotate(self, cam_index: int):
+        """Close current file and open new one after frame limit reached."""
         writer = self.out_writers.get(cam_index)
         if writer is not None:
             writer.release()
         self._open_writer(cam_index)
-
-    def _close_writer(self, cam_index: int):
-        writer = self.out_writers.get(cam_index)
-        if writer is not None:
-            try: 
-                writer.release()
-                logger.info(f"[Recorder][cam{cam_index+1}] Writer closed due to inactivity")
-            except Exception: 
-                pass
-            self.out_writers[cam_index] = None
-
-    # ---------- frame helpers ----------
 
     def _resize_if_needed(self, cam_index: int, frame):
         if frame is None:
@@ -168,80 +130,64 @@ class MultiCameraRecorder:
         return frame
 
     # ---------- public API ----------
-
-    def record_video(self, frames: List[Optional[Any]]):
-        """
-        Record video frames from multiple cameras
-        
-        Args:
-            frames: List of frames, one per camera [cam1_frame, cam2_frame, ...]
-                   Each frame can be None if no frame available from that camera
-        """
+    def record_video(self, frames: List[Optional[Any]], actual_fps: int = 8):
+        """Write frames directly to video files with frame-based or time-based rotation."""
         try:
-            # Global storage cap - delete oldest files when storage limit is reached
+            # Clean up storage if needed
             while self._total_size() > self.MAX_STORAGE_BYTES:
                 self._delete_oldest_file()
 
-            now = time.time()
+            duplication_factor = 3
+            current_time = time.time()
 
             for cam_index, frame in enumerate(frames):
-                has_frame = frame is not None
-
-                if has_frame:
-                    self.last_frame_ts[cam_index] = now
-
-                # Initialize camera if we have a frame and it's not set up yet
-                if cam_index not in self.frame_size_by_cam and has_frame:
-                    self._ensure_cam_ready(cam_index, frame)
-
-                # If writer hasn't been opened yet, skip this camera
-                if cam_index not in self.out_writers:
+                if frame is None:
                     continue
 
-                # Idle timeout → close writer
-                last_ts = self.last_frame_ts.get(cam_index, 0)
-                if last_ts and (now - last_ts > self.idle_close_seconds):
-                    self._close_writer(cam_index)
+                # Ensure camera writer is ready
+                self._ensure_cam_ready(cam_index, frame)
+                writer = self.out_writers.get(cam_index)
+                if writer is None:
+                    continue
 
-                # Frame available but writer is closed → reopen
-                if has_frame and self.out_writers.get(cam_index) is None:
-                    self._ensure_cam_ready(cam_index, frame)
-
-                # Rotate files after duration (default 1 minute)
-                if (self.out_writers.get(cam_index) is not None and 
-                    now - self.start_times.get(cam_index, now) >= self.file_duration):
+                # --- Rotate if max_frames reached OR 60 seconds passed ---
+                if (
+                    self.frame_counts.get(cam_index, 0) >= self.max_frames
+                    or (current_time - self.start_times.get(cam_index, current_time)) >= 160
+                ):
                     self._rotate(cam_index)
 
-                # Write frame if available and writer is open
-                if has_frame and self.out_writers.get(cam_index) is not None:
-                    resized_frame = self._resize_if_needed(cam_index, frame)
-                    self.out_writers[cam_index].write(resized_frame)
+                # Resize frame
+                resized_frame = self._resize_if_needed(cam_index, frame)
+                if resized_frame is None:
+                    continue
+
+                # Duplicate frames to simulate smoother FPS
+                for _ in range(duplication_factor):
+                    writer.write(resized_frame)
+                    self.frame_counts[cam_index] += 1
 
         except Exception as e:
             logger.error(f"[Recorder] Error writing video: {e}", exc_info=True)
 
     def close(self):
-        """Close all video writers"""
+        """Close all video writers."""
         for cam_index, writer in list(self.out_writers.items()):
             if writer is not None:
-                try: 
+                try:
                     writer.release()
                     logger.info(f"[Recorder][cam{cam_index+1}] Writer closed")
-                except Exception: 
+                except Exception:
                     pass
         self.out_writers.clear()
 
     def get_status(self) -> Dict[str, Any]:
-        """Get current recording status"""
-        status = {
-            'active_cameras': [],
+        """Get current recording status."""
+        return {
+            'active_cameras': [f"cam_{i+1}" for i, w in self.out_writers.items() if w is not None],
             'total_storage_bytes': self._total_size(),
             'max_storage_bytes': self.MAX_STORAGE_BYTES,
-            'storage_usage_percent': (self._total_size() / self.MAX_STORAGE_BYTES) * 100
+            'storage_usage_percent': (self._total_size() / self.MAX_STORAGE_BYTES) * 100,
+            'target_fps': self.fps,
+            'max_frames': self.max_frames,
         }
-        
-        for cam_index, writer in self.out_writers.items():
-            if writer is not None:
-                status['active_cameras'].append(f"cam_{cam_index + 1}")
-        
-        return status
