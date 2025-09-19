@@ -152,9 +152,6 @@ class Mqtt_Connect(mqtt.Client):
                                            "5": 30 * 60,    # Every 30 minutes
                                            "6": 60 * 60}    # Every 1 hour
 
-        self.seen_ppe = defaultdict(set)
-        self.seen_non_ppe = defaultdict(set)
-
         self.topic_handlers = {
                 self.device_key + self.subscribe_topics[0]: self.handle_update_value_sensor_amount,  #1 Get current sensor value amount
                 self.device_key + self.subscribe_topics[1]: self.handle_sensor_notify_decimal,   #2 Get current sensor notify decimal
@@ -189,6 +186,9 @@ class Mqtt_Connect(mqtt.Client):
                 self.device_key + self.subscribe_topics[30]: self.handle_request_image,  # 31
                 self.device_key + self.subscribe_topics[31]: self.handle_set_crop, 
         }
+
+        self._relay_last_change = {}   # relayNo -> timestamp
+        self.MIN_ONOFF_SEC = 2.0       # เวลาขั้นต่ำระหว่างสลับสถานะ (วินาที)
         
         self.username_pw_set(username=os.getenv('USERMQ'), password=os.getenv('PASSMQ'))
         self.connect(self.broker_address, self.port)
@@ -572,8 +572,11 @@ class Mqtt_Connect(mqtt.Client):
 
     #25
     def handle_delete_camera(self, data):
-        CAM = data['cameras']
-        self.cameras.del_camera(CAM)
+        remaining = data.get("cameras", [])
+        if isinstance(remaining, dict):
+            remaining = [remaining]
+        logger.info(f"Remaining cameras from backend: {remaining}")
+        self.cameras.sync_remaining_cameras(remaining)
 
     #26
     def handle_sub_value_sensor(self, data):
@@ -624,7 +627,7 @@ class Mqtt_Connect(mqtt.Client):
                 )
                 return
 
-            img = cv2.resize(img, (640, 480))
+            img = cv2.resize(img, (640, 360))
             _, buffer = cv2.imencode('.jpg', img)
             image_as_base64 = base64.b64encode(buffer).decode('utf-8')
 
@@ -655,7 +658,7 @@ class Mqtt_Connect(mqtt.Client):
         ROOT = os.path.dirname(__file__)
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-        file_url = url if option else 'https://updatego.modela.co.th/update_aicam/Aicam-PPE_v1.0.0.zip'
+        file_url = url if option else 'https://updatego.modela.co.th/update_aicam/Aicam-Area_v1.0.0.zip'
         local_file = 'downloaded_file.zip'
 
         try:
@@ -747,6 +750,12 @@ class Mqtt_Connect(mqtt.Client):
             logger.error("❌ error call update api", exc_info=True)
             payload = {"key": self.device_key, "status": "failed"}
             self.publish(self.device_key + "/Update/ota/response", json.dumps(payload), qos=2, retain=False)
+
+    def is_time_in_range(self, start, end, current):
+        if start < end:
+            return start <= current <= end
+        else:  # ข้ามวัน
+            return current >= start or current <= end
       
     # Create state and return in json form
     @staticmethod
@@ -780,120 +789,136 @@ class Mqtt_Connect(mqtt.Client):
             return
     
     def control_switch(self, relayNo, from_switch=None, detectObj=None):
-        
-        if from_switch is None or len(from_switch) == 0:
-            logger.warning(f"control_switch: from_switch is None or empty - from {detectObj}")
+        if not from_switch:
+            logger.warning("control_switch: empty")
             return
 
-        # print("control_switch",from_switch,relayNo)
+        want = bool(relayNo)
+
         for item in from_switch:
-            if self.RelayAutoMode[item-1]['relayAutoMode'] is True:
+            # Check if auto mode is enabled for this relay
+            if not self.RelayAutoMode[item - 1]['relayAutoMode']:
+                continue
 
-                current_state = self.Relay[item-1]
-                new_state = (relayNo >= 1)
+            current = self.Relay[item - 1]
+            if current == want:
+                continue  # Already in the desired state
 
-                if current_state == new_state:
-                    continue
-                
-                self.Relay[item-1] = new_state
-                # logger.info(f"Relay {item} turned {'ON' if new_state else 'OFF'} from {ppe_object.get(detectObj, 'Unknown')}")
+            # Change relay state immediately
+            self.Relay[item - 1] = want
+            outload_Relay.set_state(item, want)
 
-                outload_Relay.set_state(item, new_state)
-                    
-                self.publish(self.device_key+'/ControlRelay',json.dumps({'key': self.device_key,
-                                            'relayNo': item,
-                                            'relayStatus': relayNo}),
-                                qos=2, 
-                                retain=False)
-        
+            # Publish relay status
+            self.publish(
+                self.device_key + '/ControlRelay',
+                json.dumps({
+                    'key': self.device_key,
+                    'relayNo': item,
+                    'relayStatus': 1 if want else 0
+                }),
+                qos=2,
+                retain=False
+            )
+
+            
     def control_low_high(self,option:int,sensorControl:list,actual_value:float, value_low_limit:float, value_high_limit:float, detectObj=None):
-                    
+        # print("actual_value: ", actual_value)
+        # print("low", value_low_limit)
+        # print("high", value_high_limit)
         '''
-            option 1: Turn on when over high limit and turn off when lower low limit
-            option 2: Turn off when over high limit and turn on when lower low limit
-            option 3: Turn on when over high limit
-            option 4: Turn off when lower low limit
-            option 5: Turn on when lower low limit
-            option 6: Turn off when over high limit
+            case 1: Turn on when over high limit and turn off when lower low limit
+            case 2: Turn off when over high limit and turn on when lower low limit
+            case 3: Turn on when over high limit
+            case 4: Turn off when lower low limit
+            case 5: Turn on when lower low limit
+            case 6: Turn off when over high limit
         '''
+        # print("check control_low_high activate")
         match option:
             case 1:
+                # print("1")
+                if actual_value == 0:
+                    self.control_switch(0, sensorControl ,detectObj)
                 if actual_value < value_low_limit:
                     self.control_switch(0, sensorControl ,detectObj)
                 elif actual_value > value_high_limit:
                     self.control_switch(1, sensorControl,   detectObj)
             case 2:    
-                if actual_value < value_low_limit:
+                # print("2")
+                if actual_value <= value_low_limit:
                     self.control_switch(1, sensorControl,   detectObj)
                 elif actual_value > value_high_limit:
                     self.control_switch(0, sensorControl,   detectObj)
             case 3:
-                if actual_value > value_high_limit:
+                # print("3")
+                if actual_value >= value_high_limit:
+                    # print("before control switch")
                     self.control_switch(1, sensorControl,   detectObj)
+                    # print("after control switch")
+                else:
+                    self.control_switch(0, sensorControl, detectObj)
             case 4:
-                if actual_value < value_low_limit:
+                # print("4")
+                if actual_value <= value_low_limit:
                     self.control_switch(0, sensorControl,   detectObj)
+                else:
+                    self.control_switch(1, sensorControl, detectObj)
             case 5:
-                if actual_value < value_low_limit:
+                # print("5")
+                if actual_value <= value_low_limit:
                     self.control_switch(1, sensorControl,   detectObj)
+                else:
+                    self.control_switch(0, sensorControl,   detectObj)
             case 6:
+                # print("6")
                 if actual_value > value_high_limit:
                     self.control_switch(0, sensorControl,  detectObj)
+                else:
+                    self.control_switch(1, sensorControl,   detectObj)
             case _:
                     pass
 
-    def control_sensor_option(self, option, detected_sensor, control_switch, detectObj=None):
-        if option == 1:  # On when detected / Off when not detected
-            if detected_sensor == 0:
-                self.control_switch(control_switch, 0, detectObj)
-            else:
-                self.control_switch(control_switch, 1, detectObj)
-        elif option == 2:  # Off when detected / On when not detected
-            if detected_sensor == 1:
-                self.control_switch(control_switch, 1, detectObj)
-            else:
-                self.control_switch(control_switch, 0, detectObj)
-        elif option == 3:  # Open when detected
-            if detected_sensor == 1:
-                self.control_switch(control_switch, 1, detectObj)
-        elif option == 4:  # Close when not detected
-            if detected_sensor == 0:
-                self.control_switch(control_switch, 0, detectObj)
-        elif option == 5:  # Open when not detected
-            if detected_sensor == 0:
-                self.control_switch(control_switch, 1, detectObj)
-        elif option == 6:  # Close when detected
-            if detected_sensor == 1:
-                self.control_switch(control_switch, 0, detectObj)
+    def handle_relay_control_output(self, detect_cond, relay_list, actual_value, value_sensor=None, detectObj=None):
+        """
+        คุมรีเลย์แบบรวม:
+        - detect_cond == 0  : No Control (pass-through) แต่ยังเช็คช่วงเวลาถ้ามี
+        - detect_cond in 1..6: ใช้ low/high limit + เช็คช่วงเวลาถ้ามี
+        """
+        if not relay_list:
+            return
 
-    def handle_relay_control_timer(self, value_sensor, detect_cond, relayControl, valueData, detectObj):
-        """Handle relay control logic based on sensor conditions and timer settings"""
-        if detect_cond != 0:
-            if value_sensor["timerControlStatus"] == 1: 
-                start_time = _time(value_sensor["timerControlBeginHour"][0], value_sensor["timerControlBeginMinute"][0])  # set start time
-                end_time = _time(value_sensor["timerControlEndHour"][0], value_sensor["timerControlEndMinute"][0])   # set end time
-                current_time = datetime.now().time()
-                if self.is_time_in_range(start_time, end_time, current_time):
-                    self.control_low_high(detect_cond, relayControl, valueData, value_sensor['sensorValueLowLimit'], value_sensor['sensorValueHighLimit'], detectObj)
-            elif value_sensor["timerControlStatus"] == 0:
-                self.control_low_high(detect_cond, relayControl, valueData, value_sensor['sensorValueLowLimit'], value_sensor['sensorValueHighLimit'], detectObj)
-
-    def handle_status_sensor_relay_control(self, valueoption, valueTimerControl, detect_cond, detectd_sensor, Index, control_switch):
-        """Handle status sensor relay control logic"""
-        status_time = valueTimerControl['timerControlStatus']
-        timerControlBeginHour = valueTimerControl['timerControlBeginHour'][0]
-        timerControlBeginMinute = valueTimerControl['timerControlBeginMinute'][0]
-        timerControlEndHour = valueTimerControl['timerControlEndHour'][0]
-        timerControlEndMinute = valueTimerControl['timerControlEndMinute'][0]
-        
-        if status_time == 1:
-            start_time = _time(timerControlBeginHour, timerControlBeginMinute)  # set start time
-            end_time = _time(timerControlEndHour, timerControlEndMinute)   # set end time
+        # ตรวจเวลาถ้ามีการตั้งเวลา
+        in_time = True
+        if value_sensor is not None and value_sensor.get("timerControlStatus", 0) == 1:
+            start_time = _time(value_sensor["timerControlBeginHour"][0], value_sensor["timerControlBeginMinute"][0])
+            end_time   = _time(value_sensor["timerControlEndHour"][0],   value_sensor["timerControlEndMinute"][0])
             current_time = datetime.now().time()
-            if self.is_time_in_range(start_time, end_time, current_time):
-                self.control_sensor_option(detect_cond, detectd_sensor[Index-1], control_switch)
-        elif status_time == 0:
-            self.control_sensor_option(detect_cond, detectd_sensor[Index-1], control_switch)
+            in_time = self.is_time_in_range(start_time, end_time, current_time)
+
+        if not in_time:
+            self.control_switch(0, relay_list)
+            return
+
+        if detect_cond == 0:
+            # ---- No Control: เปิด/ปิดจาก value ตรง ๆ (ยังคงเคารพช่วงเวลา) ----
+            ON_THRESHOLD = 1.0  # ปรับได้ตามโจทย์ (>=1 ถือว่ามีการตรวจพบ)
+            desired = 1 if (actual_value is not None and actual_value >= ON_THRESHOLD) else 0
+            self.control_switch(desired, relay_list, detectObj)
+            return
+
+        # ---- มีเงื่อนไขแบบ limit (1..6) ----
+        if value_sensor is None:
+            return  # ป้องกันพลาด
+
+        try:
+            low  = float(value_sensor.get('sensorValueLowLimit'))
+            high = float(value_sensor.get('sensorValueHighLimit'))
+            val  = float(actual_value or 0.0)
+        except Exception:
+            logger.warning("handle_relay_control: invalid numeric bounds/values")
+            return
+
+        self.control_low_high(detect_cond, relay_list, val, low, high, detectObj)
 
     def send_status(self,key,statusData):
         for index_statusNo in range(len(statusData)):
@@ -907,10 +932,27 @@ class Mqtt_Connect(mqtt.Client):
     def client_publish(self, valuesList, image, detectd_sensor=None, img_by_sensordetected=None, detection_buffer=None, correct_sensors=None):
         print("client_publish", valuesList)
         """
-            Format Value
-            1 Camera => [[1, 0], 1] => [[frame1count1, frame1count2], totalcount]
-            2 Camera => [[1, 0], [1, 0], 2] => [[frame1count1, frame1count2], [frame2count1, frame2count2], totalcount]
+            {
+            {"cameraNO": 1, "value": [0,0]},
+            {"cameraNO": 2, "value": [1,0]},
+            {"total": X}
+            }
         """
+
+        if isinstance(valuesList, dict):
+            # New format
+            total_entry = {"total": valuesList.get("total", 0)}
+            cameras = valuesList.get("cameras", [])
+        elif isinstance(valuesList, list):
+            # Old format
+            total_entry = next((c for c in valuesList if "Total" in c or "total" in c), {"total": 0})
+            cameras = [c for c in valuesList if isinstance(c, dict) and "cameraNO" in c]
+        else:
+            total_entry = {"total": 0}
+            cameras = []
+
+        valuesList = {"cameras": cameras, "total": total_entry.get("total", 0)}
+
         def comparison(actual_value:float, value_low_limit:float, value_high_limit:float)->str:
             if actual_value is None:
                 return "normal"
@@ -920,12 +962,6 @@ class Mqtt_Connect(mqtt.Client):
                 return "low"
             else:
                 return "normal"  
-        
-        def is_time_in_range(start, end, current):
-            if start < end:
-                return start <= current <= end
-            else:  # ข้ามวัน
-                return current >= start or current <= end
 
         def sensor_value_json(key:str, sensorNo:int, sensorSelected:int, value:float) -> str:
             text = {
@@ -978,47 +1014,39 @@ class Mqtt_Connect(mqtt.Client):
             'WiFi': DeviceCare.Map_value(-105, -50, 0, 100)
             }), qos=2, retain=False)
 
-        active_preset_keys = set() 
-
         for i in range(self.number_of_sensor_value):
-            # print(f"Sensor {i}:")
-            # print(f"  number_of_sensor_value: {self.number_of_sensor_value}")
             sensor_config = self.current_setting[i]
-            # print(f"  sensor_config: {sensor_config}")
-            sensorNo = sensor_config['sensorNo'] 
-            detectObj = sensor_config['sensorSelect']
-            camera = sensor_config['subSensorSelect']
+            sensorNo   = sensor_config['sensorNo']
+            detectObj  = sensor_config['sensorSelect']     # 1=total, 2=area1, 3=area2
+            cameraNO   = sensor_config['subSensorSelect']  # real cameraNO (not index)
             detect_cond = sensor_config['sensorOption']
-            relay = sensor_config['sensorControl']
-            notiType = sensor_config['notifyMethod']
-            # print(f"  sensorNo: {sensorNo}, detectObj: {detectObj}, camera: {camera}")
+            relay     = sensor_config['sensorControl']
+            notiType  = sensor_config['notifyMethod']
 
-            #camera index
-            camera_no = next((i for i, d in enumerate(self.cameras.cameras)
-                        if isinstance(d, dict) and d.get('cameraNO') == camera), None)
+            value = 0
 
-            # Handle preset configurations (10-19)
-            if camera_no is not None and detectObj != 0 and camera != 0:
-                frame_counts = valuesList[camera_no] if camera_no < len(valuesList) else []
+            if cameraNO != 0 and detectObj != 0:
+                cam_entry = next((c for c in valuesList["cameras"] if c.get("cameraNO") == cameraNO), None)
 
-                if detectObj == 1:
-                    value = valuesList[-1]  # total
-                elif detectObj == 2:
-                    value = frame_counts[0] if len(frame_counts) > 0 else 0  # Area1
-                elif detectObj == 3:
-                    value = frame_counts[1] if len(frame_counts) > 1 else 0  # Area2
-                else:
-                    value = 0 
+                if detectObj == 1:   # total
+                    value = valuesList["total"]
+                elif detectObj == 2 and cam_entry:
+                    value = cam_entry["value"][0] if len(cam_entry["value"]) > 0 else 0
+                elif detectObj == 3 and cam_entry:
+                    value = cam_entry["value"][1] if len(cam_entry["value"]) > 1 else 0
 
                 self.publish(self.device_key + '/ValueSensor',
                             sensor_value_json(self.device_key, sensorNo, detectObj, int(value)),
                             qos=2, retain=False)
 
-                # active relay control based on sensor conditions
-                if camera != 0 and relay and isinstance(relay, list) and len(relay) > 0:
-                    self.control_switch(value, relay, detectObj)
-
+                if relay and isinstance(relay, list) and len(relay) > 0:
+                    self.handle_relay_control_output(
+                        detect_cond, relay, float(value or 0), sensor_config, detectObj
+                    )
             else:
+                self.handle_relay_control_output(
+                    detect_cond, relay, float(0), sensor_config, detectObj
+                )
                 self.publish(self.device_key + '/ValueSensor',
                             sensor_value_json(self.device_key, sensorNo, detectObj, 0),
                             qos=2, retain=False)
@@ -1181,7 +1209,5 @@ if __name__ == '__main__':
     this program it debug and test only!
     '''
     pass
-
-
 
 
