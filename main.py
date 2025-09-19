@@ -28,19 +28,21 @@ from datetime import datetime
 from record_v import MultiCameraRecorder
 from sdnotify import SystemdNotifier
 from gstream_rtsp_server import FrameSource
-from webrtc_server import start_webrtc_server, current_stream
+from webrtc_server import start_webrtc_server, current_stream, state_lock
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import copy
 import json
 from pathlib import Path
 from env_setup import initialize_gpio, setup_environment
+from polygon_store import PolygonStore
 
 if not initialize_gpio():
     print("❌ CRITICAL: GPIO initialization failed!")
     sys.exit(1)
 
 setup_environment()
+polygon_store = PolygonStore("polygons.json")
 
 logger = setup_logger(__name__)
 
@@ -48,38 +50,6 @@ POLYGON_FILE = Path("polygons.json")
 
 # Setup logger and notifier
 notifier = SystemdNotifier()
-
-class SmartQueue:
-    def __init__(self, maxsize=5):
-        self.queue = queue.Queue(maxsize=maxsize)
-    
-    def put(self, item, block=True, timeout=None):
-        """Blocking put that drops oldest item if full"""
-        try:
-            self.queue.put(item, block=block, timeout=timeout)
-        except queue.Full:
-            try:
-                self.queue.get_nowait()  # Remove oldest item
-                self.queue.put(item, block=False)  # Add new item
-            except queue.Empty:
-                pass
-    
-    def put_nowait(self, item):
-        """Non-blocking put that drops oldest item if full"""
-        try:
-            self.queue.put_nowait(item)
-        except queue.Full:
-            try:
-                self.queue.get_nowait()
-                self.queue.put_nowait(item)
-            except queue.Empty:
-                pass
-    
-    def get(self, timeout=None):
-        return self.queue.get(timeout=timeout)
-    
-    def get_nowait(self):
-        return self.queue.get_nowait()
 
 # Global Queues and Events
 data_queue = queue.Queue(maxsize=10)
@@ -89,8 +59,7 @@ event = Event()
 event_light = Event()
 
 # Constants
-WIDTH, HEIGHT = 1080, 720
-
+WIDTH, HEIGHT = 640, 360
 
 # Connect with server
 def result_sending():
@@ -202,7 +171,7 @@ def wait_for_network(timeout=150):
         time.sleep(2)
 
 def draw_no_camera_frame(text):
-    frame = np.zeros((720, 1080, 3), dtype=np.uint8)
+    frame = np.zeros((360, 640, 3), dtype=np.uint8)
     cv2.putText(frame, text, (80, 240),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3, cv2.LINE_AA)
     return frame
@@ -225,14 +194,34 @@ class FrameBuffer:
         """Get all frames in buffer"""
         return self.buffer
 
-def update_rtsp_stream(all_frames, selected_cam_idx, draw_no_camera_frame):
-    try:
-        if 0 <= selected_cam_idx < len(all_frames) and all_frames[selected_cam_idx] is not None:
-            FrameSource.update_frame(all_frames[selected_cam_idx])
-        else:
-            FrameSource.update_frame(draw_no_camera_frame('No camera'))
-    except Exception:
-        FrameSource.update_frame(draw_no_camera_frame('Error'))
+def sync_webrtc_camera_list(cam_ids):
+    cams = []
+    for no in cam_ids:
+        polys = polygon_store.get_polygons(no)
+        cams.append({
+            "id": no,
+            "polygons": polys or [
+                {"coord": [], "seen": 0, "name": ""},
+                {"coord": [], "seen": 0, "name": ""}
+            ]
+        })
+    with state_lock:
+        if current_stream.get("selected_cam_id") not in [c["id"] for c in cams]:
+            current_stream["selected_cam_id"] = cams[0]["id"] if cams else None
+        current_stream["cameras"] = cams
+
+
+def get_selected_camera_id():
+    with state_lock:
+        return current_stream.get("selected_cam_id")
+
+def update_rtsp_stream(frames_by_no, camera_id):
+    if camera_id and camera_id in frames_by_no:
+        frame_data = frames_by_no[camera_id]
+        FrameSource.update_frame(frame_data)
+        # print(f"Streaming camera ID {camera_id}")
+    else:
+        FrameSource.update_frame(draw_no_camera_frame('No camera'))
 
 def load_polygons_from_file(camera_id=0):
     """Load polygons for a given camera id from polygons.json"""
@@ -248,6 +237,18 @@ def load_polygons_from_file(camera_id=0):
     except Exception as e:
         print("⚠️ Failed to load polygons.json:", e)
     return []
+
+def detect_camera_fps(cameras, duration=5):
+    start = time.time()
+    count = 0
+    while time.time() - start < duration:
+        frames = cameras.read_frame()
+        for f in frames:
+            if f is not None:
+                count += 1
+    elapsed = time.time() - start
+    fps = count / elapsed if elapsed > 0 else 0
+    return min(fps, 15)
 
 def main():
     Thread(target=light_notification, daemon=True).start()
@@ -302,18 +303,40 @@ def main():
         value_counter = mqtt.get_main_values()
         camera_setting = mqtt.get_camera_info()
 
-        print(camera_setting)
+        cam_ids_internal = sorted(cameras.cameras.keys())
+
+        cameraNO_by_internal = {}
+        if camera_setting and "cameras" in camera_setting and camera_setting["cameras"]:
+            # assume order of discovered cams aligns with config order; adjust if you have explicit IDs
+            for idx, internal_id in enumerate(cam_ids_internal):
+                try:
+                    cameraNO_by_internal[internal_id] = camera_setting["cameras"][idx]["cameraNO"]
+                except Exception:
+                    cameraNO_by_internal[internal_id] = internal_id  # fallback
+        else:
+            cameraNO_by_internal = {iid: iid for iid in cam_ids_internal}
 
         logger.info(f"Loaded sensor values: {value_counter}")
-        box_models = []
-        for index in range(2):
-            model = ModelboxProcess(WIDTH, HEIGHT, value=value_counter[index])
-            box_models.append(model)
-            print(f"📦 Model {index} initialized")
+
+        #---------------------- Init -------------------------------------
+        box_models = {}
+        cam_ids = sorted(cameras.cameras.keys())
+        for idx, cam_no in enumerate(cam_ids):
+            try:
+                model = ModelboxProcess(WIDTH, HEIGHT, value=value_counter[idx])
+                box_models[cam_no] = model
+                print(f"📦 Model for cam {cam_no} initialized")
+            except IndexError:
+                logger.warning(f"No value_counter for cam {cam_no}, skipping model init")   
         
         mqtt.set_box_model(model=box_models)
 
-        Thread(target=gstream_rtsp_server.start_rtsp_server, daemon=True).start()
+        real_fps = int(detect_camera_fps(cameras))
+        print(f"📷 Detected camera FPS: {real_fps}")
+
+        Thread(target=lambda: gstream_rtsp_server.start_realtime_rtsp_server(
+            port=8554, fps=real_fps, mount="/stream"
+        ), daemon=True).start()
         Thread(target=start_webrtc_server, daemon=True).start()
 
         spacer = np.full((500, 10, 3), 220, dtype=np.uint8)
@@ -322,80 +345,147 @@ def main():
         event.set()
 
         start_time = time.time()
-        recoder = MultiCameraRecorder(cams=cameras)
+        recorder = MultiCameraRecorder(cams=cameras, fps=16)
         cameras.apply_config(camera_setting)
           
         call_setting = False
         last_stream_time = 0
-        stream_interval = 1.0 / 10 
 
         frame_buffer = FrameBuffer()
 
         while True:
-        # ------------------------------ Process is Here ------------------------------ #
+            # ------------------------------ Process Loop ------------------------------ #
+
             if not mqtt.is_connected():
                 call_setting = True
                 continue
-                        
+                                    
             if call_setting:
+                # 1) pull latest settings from server
                 mqtt.del__cameras()
                 api_status = mqtt.set_current_setting()
-                for model in box_models:
-                    model.set_new_value(mqtt.get_Data_info())
+
+                # 2) refresh values & camera config from server
+                value_counter = mqtt.get_main_values()
+                camera_setting = mqtt.get_camera_info()
+
+                # 3) (re)apply camera config to the capture layer
+                cameras.apply_config(camera_setting)
+
+                # 4) rebuild box_models to match active cameras / value_counter
+                cam_ids = sorted(cameras.cameras.keys())
+                num_models = min(len(value_counter), len(cam_ids))
+                box_models = {}
+                for idx, cam_no in enumerate(cam_ids[:num_models]):
+                    model = ModelboxProcess(WIDTH, HEIGHT, value=value_counter[idx])
+                    box_models[cam_no] = model
+                    print(f"📦 Model for cam {cam_no} re-initialized")
+
+                mqtt.set_box_model(model=box_models)
                 logger.info(f"API status: {api_status}")
                 call_setting = False
 
-            for cam_id, model in enumerate(box_models):
-                polygons = load_polygons_from_file(cam_id)
+            # --- Sync box_models with current cam_ids ---
+            for idx, cam_no in enumerate(cam_ids):
+                if cam_no not in box_models:
+                    try:
+                        val = value_counter[idx] if idx < len(value_counter) else [0, 0]
+                        box_models[cam_no] = ModelboxProcess(WIDTH, HEIGHT, value=val)
+                        logger.info(f"📦 Model created for new cam {cam_no}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to init model for cam {cam_no}: {e}")
+
+            # Remove models for cams that no longer exist
+            for stale in list(box_models.keys()):
+                if stale not in cam_ids:
+                    box_models.pop(stale, None)
+                    logger.info(f"🗑️ Removed model for cam {stale}")
+
+            # --- Update polygons for each model ---
+            for cam_no, model in box_models.items():
+                polygons = polygon_store.get_polygons(cam_no) or []
                 model.set_polygons([
-                    {"coord": p, "seen": 0, "name": f"Area-{i+1}"} 
+                    {"coord": p.get("coord", []),
+                    "seen": 0,
+                    "name": p.get("name", f"Area-{i+1}")}
                     for i, p in enumerate(polygons)
                 ])
 
+            # --- Grab frames ---
             frames = [optimize_frame(f) for f in cameras.read_frame()]
-            selected_cam = current_stream["selected_cam"]
-            if 0 <= selected_cam < len(frames):
-                FrameSource.latest_raw_frame = frames[selected_cam]
+            cam_ids = sorted(cameras.cameras.keys())  # real cameraNOs
 
-            all_frames, results = [], []
+            # Build frames_by_no dict
+            frames_by_no = {}
+            all_frames = []
+            for idx, cam_no in enumerate(cam_ids):
+                frame = frames[idx] if idx < len(frames) else None
+                if frame is not None:
+                    frames_by_no[cam_no] = frame
+                all_frames.append(frame)
+
             notifier.notify("WATCHDOG=1")
 
-            # =============== New Streaming and Recording data ===================
-            with ThreadPoolExecutor(max_workers=2) as executor:
+            # ========= Inference =========
+            result_map = {}
+            with ThreadPoolExecutor(max_workers=max(2, len(cam_ids))) as executor:
                 futures = []
-                for index, (frame, model) in enumerate(zip(frames, box_models)):
-                    if index < len(cameras.cameras) and cameras.cameras[index] is not None:
-                        futures.append(executor.submit(process_frame, frame, model, index))
-                
-                all_frames = [None] * len(cameras.cameras)
-                results = [None] * len(cameras.cameras)
+                for idx, cam_no in enumerate(cam_ids):
+                    frame = frames[idx] if idx < len(frames) else None
+                    model = box_models.get(cam_no)
+                    if model is None:
+                        continue
+                    futures.append(executor.submit(process_frame, frame, model, cam_no))
 
-                for future in futures:
-                    result = future.result()
-                    idx, frame_tuple, counts, *_ = result   # ใช้ * เก็บค่าที่เหลือ
-                    all_frames[idx] = frame_tuple
-                    results[idx] = counts
+                for fut in futures:
+                    cam_no, frame_tuple, counts, *_ = fut.result()
+                    if counts:
+                        result_map[cam_no] = counts
+                    if frame_tuple is not None:
+                        frames_by_no[cam_no] = frame_tuple
 
-            # Flatten the list of lists and remove None
-            results = [d for sublist in results if sublist for d in sublist]
-            total = sum(sum(frame) for frame in results)
-            results_with_total = results + [total]
+            # ========= Structure results as JSON (unchanged) =========
+            active_cams = sorted(result_map.keys())
+            structured_results = []
+            for cam_no in active_cams:
+                structured_results.append({
+                    "cameraNO": cam_no,
+                    "value": result_map[cam_no]
+                })
+            total = sum(sum(v) for v in result_map.values())
+            structured_payload = {
+                "cameras": structured_results,
+                "total": total
+            }
 
-            # recoder.record_video(all_frames)
+            # --- Reconcile selected_cam_id with actual frames ---
+            valid_ids = list(frames_by_no.keys())
+            with state_lock:
+                if current_stream.get("selected_cam_id") not in valid_ids:
+                    current_stream["selected_cam_id"] = valid_ids[0] if valid_ids else None
 
-            # print("Results:", results) 
-            # print("All Frames:", all_frames)
+            sel_id = get_selected_camera_id()
 
-            data_queue.put({'results': results_with_total,'images': all_frames})
+            # --- Update RTSP/WebRTC frame source ---
+            if sel_id in frames_by_no:
+                FrameSource.latest_raw_frame = frames_by_no[sel_id]
+                # print(f"🎥 Streaming camera ID {sel_id}")
+            else:
+                FrameSource.latest_raw_frame = draw_no_camera_frame("No camera")
 
-            # """ 
-            # all_frames = [
-            # (กล้อง0),
-            # (กล้อง1)
-            # ] """
+            # print("🔎 selected_cam =", current_stream["selected_cam_id"], 
+            #     "cam_ids =", cam_ids, 
+            #     "frames_by_no keys =", list(frames_by_no.keys()))
 
-            # # Choose which view in the tuple you want to display (0 or 1)
-            update_rtsp_stream(all_frames, selected_cam, draw_no_camera_frame)
+            # ========= Send out =========
+            data_queue.put({'results': structured_payload, 'images': all_frames})
+
+            # --- Update RTSP stream ---
+            selected_camera_id = get_selected_camera_id()
+            update_rtsp_stream(frames_by_no, selected_camera_id)
+
+            #-------- Record Video ----------
+            recorder.record_video_dict(frames_by_no)
 
             # ------------------------------ END ------------------------------ #
 
@@ -418,7 +508,7 @@ def process_frame(frame, model, camera_index):
         if frame is None:
             logger.warning(f"Model returned None frames for camera {camera_index}")
 
-        return (camera_index, frame, [value], None, None)
+        return (camera_index, frame, value, None, None)
 
     except Exception as e:
         logger.error(f"Error processing camera {camera_index}: {e}", exc_info=True)

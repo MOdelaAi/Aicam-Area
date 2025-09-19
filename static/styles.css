@@ -94,6 +94,117 @@ body::before {
     radial-gradient(circle at 80% 20%, rgba(255,193,7,.05) 0%, transparent 50%);
 }
 
+/* ===== NAVBAR =========================================== */
+/* ===== NAVBAR =========================================== */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap; /* no line breaks */
+  padding: 14px 24px;
+  background: rgba(30,30,30,0.9);
+  border-bottom: 1px solid var(--gold-a30);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(12px);
+}
+
+/* Make each section flex */
+.navbar-left,
+.navbar-links,
+.navbar-right {
+  display: flex;
+  align-items: center;
+}
+
+/* Left (brand) takes auto space */
+.navbar-left {
+  flex: 1;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 0 10px var(--gold-a30);
+}
+
+/* Center links */
+.navbar-links {
+  flex: 2;
+  list-style: none;
+  display: flex;
+  justify-content: center; /* centered in the navbar */
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+}
+
+/* Right side (datetime or logout) */
+.navbar-right {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+/* Navbar image (logo) */
+.navbar-left img {
+  height: 35px;
+  width: auto;
+  display: block;
+  border-radius: 6px; /* optional: rounded edges */
+}
+
+/* Brand text next to logo */
+.navbar-left .brand {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 0 8px rgba(255,193,7,.3);
+}
+
+/* Navbar links */
+.navbar-links li a {
+  color: var(--txt);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 2px solid transparent;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+/* Hover state */
+.navbar-links li a:hover {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+/* Active page highlight */
+.navbar-links li a.active {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+.navbar .datetime {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--txt);
+}
+
+/* Live indicator */
+.live-indicator {
+  width: 10px;
+  height: 10px;
+  background: var(--gold);
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+
 /* ===== LAYOUT =========================================== */
 .main-layout {
   display: flex;
@@ -135,29 +246,6 @@ button i {
   -webkit-text-fill-color: transparent;
   margin-bottom: 8px;
   text-shadow: 0 0 20px rgba(255,193,7,.30);
-}
-
-.datetime {
-  font-size: 14px;
-  color: var(--txt-dim);
-  font-weight: 300;
-  padding: 6px 12px;
-  background: var(--gold-a20);
-  border-radius: var(--radius-full);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--gold-a30);
-}
-
-/* Live indicator */
-.live-indicator {
-  width: 10px;
-  height: 10px;
-  background: var(--gold);
-  border-radius: 50%;
-  display: inline-block;
-  animation: pulse 2s infinite;
 }
 
 /* ===== VIDEO SECTION ==================================== */
