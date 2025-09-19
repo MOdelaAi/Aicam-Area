@@ -15,6 +15,7 @@ from collections import defaultdict
 import json
 import time
 import base64
+from polygon_store import PolygonStore
 from pathlib import Path
 import sys, os
 
@@ -45,42 +46,22 @@ def _static_dir() -> Path:
             print(f"[webrtc] Serving static from: {p}")
             return p
     raise FileNotFoundError("static not found; tried:\n" + "\n".join(map(str, candidates)))
-# ----------------------------------------------------
+
+# ----------------------------------------------------------------------
+store = PolygonStore(Path("polygons.json"), max_polygons_per_cam=2)
+
+data = store.get_all()
+_current_sel_id = data.get("selected_cam_id")
+if _current_sel_id is None and data.get("cameras"):
+    # default to the first camera's id if none selected yet
+    _current_sel_id = data["cameras"][0].get("id")
+    store.set_selected_cam_id(_current_sel_id)
 
 current_stream = {
-    "selected_cam": 0,
-    "cameras": [
-        {
-            "id": 0,
-            "polygons": [
-                {"coord": [], "seen": 0, "name": ""},
-                {"coord": [], "seen": 0, "name": ""}
-            ]
-        },
-        {
-            "id": 1,
-            "polygons": [
-                {"coord": [], "seen": 0, "name": ""},
-                {"coord": [], "seen": 0, "name": ""}
-            ]
-        }
-    ]
+    "selected_cam_id": _current_sel_id,
+    "cameras": data.get("cameras", [])
 }
-
-POLYGON_FILE = Path("polygons.json")
-
-if POLYGON_FILE.exists():
-    try:
-        with POLYGON_FILE.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        # sanity check: must have "cameras" and "selected_cam"
-        if "cameras" in data and isinstance(data["cameras"], list):
-            current_stream = data
-            print(f"📂 Loaded polygons.json with {len(current_stream['cameras'])} cameras")
-        else:
-            print("⚠️ polygons.json invalid format, using default")
-    except Exception as e:
-        print("⚠️ Failed to load polygons.json, using default:", e)
+# -----------------------------------------------------------------------
 
 pcs = set()
 
@@ -93,13 +74,10 @@ class FrameTrack(VideoStreamTrack):
     async def recv(self):
         pts, time_base = await self.next_timestamp()
 
-        frame = FrameSource.latest_frame
-        if frame is None:
-            print("⚠️ FrameSource.latest_frame is None")
-            frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        else:
-            pass
-            # print("✅ Got frame with shape:", frame.shape)
+        frame, timestamp = FrameSource.get_frame()
+        if frame is None or time.time() - timestamp > 0.5:  # ดรอปเฟรมเก่ากว่า 0.5 วินาที
+            print("⚠️ Dropping stale frame")
+            return await asyncio.sleep(0.01)  # รอเฟรมใหม่
 
         try:
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -115,7 +93,7 @@ class FrameTrack(VideoStreamTrack):
 
 async def cleanup_stale_peers():
     while True:
-        await asyncio.sleep(30)
+        await asyncio.sleep(10)  # Check every 10 seconds instead of 30
         for pc in list(pcs):
             if pc.connectionState in ("closed", "failed", "disconnected"):
                 await pc.close()
@@ -127,61 +105,43 @@ async def cleanup():
     pcs.clear()
 
 async def set_frame(request):
-    """Switch active camera feed (0-based index). Accepts JSON or query param."""
     try:
-        cam_raw = None
+        data = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "Invalid JSON"}, status=400)
 
-        # Try JSON body first
-        if request.can_read_body:
-            try:
-                data = await request.json()
-                cam_raw = data.get("cam", None)
-            except Exception:
-                cam_raw = None
+    try:
+        cam_id = int(data.get("camera_id"))
+    except Exception:
+        return web.json_response({"ok": False, "error": "'camera_id' must be an integer"}, status=400)
 
-        # Fallback to query string ?cam=1
-        if cam_raw is None:
-            cam_raw = request.query.get("cam", None)
+    data_all = store.get_all()
+    cameras = data_all.get("cameras", [])
+    camera_ids = [c.get("id") for c in cameras]
+    if cam_id not in camera_ids:
+        return web.json_response({"ok": False, "error": f"camera_id {cam_id} not found"}, status=400)
 
-        if cam_raw is None:
-            return web.json_response({"ok": False, "error": "missing 'cam' parameter"}, status=400)
+    # Persist by ID
+    store.set_selected_cam_id(cam_id)
 
-        # Ensure integer
-        try:
-            cam = int(cam_raw)
-        except Exception:
-            return web.json_response({"ok": False, "error": "'cam' must be an integer"}, status=400)
+    with state_lock:
+        current_stream["selected_cam_id"] = cam_id
+        current_stream["cameras"] = cameras  # keep local snapshot aligned
 
-        n_cams = len(current_stream["cameras"])
-        if cam < 0 or cam >= n_cams:
-            return web.json_response(
-                {"ok": False, "error": f"cam out of range (0..{n_cams-1})"},
-                status=400
-            )
+    print(f"[webrtc] set_frame → camera_id={cam_id}")
+    return web.json_response({"ok": True, "camera_id": cam_id})
 
-        # Update selection
-        with state_lock:
-            current_stream["selected_cam"] = cam
-            # OPTIONAL: persist selection so it survives restart
-            try:
-                with POLYGON_FILE.open("w", encoding="utf-8") as f:
-                    json.dump(current_stream, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                print("⚠️ Failed to persist selected_cam:", e)
-
-        return web.json_response({"ok": True, "selected_cam": cam})
-
-    except Exception as e:
-        return web.json_response({"ok": False, "error": str(e)}, status=500)
 
 async def get_polygons(request):
     try:
-        if POLYGON_FILE.exists():
-            with POLYGON_FILE.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-            return web.json_response(data)
-        else:
-            return web.json_response(current_stream)  # fallback to memory
+        data = store.get_all()
+        cameras = data.get("cameras", [])
+        sel_id = data.get("selected_cam_id", None)
+
+        return web.json_response({
+            "cameras": cameras,
+            "selected_cam_id": sel_id
+        })
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
@@ -192,72 +152,31 @@ async def clear_polygons(request):
             try:
                 data = await request.json()
             except:
-                data = {}
-
+                pass
         cam_id = data.get("camera_id", None)
-
-        with state_lock:
-            if cam_id is None:
-                # clear ALL cameras
-                for cam in current_stream["cameras"]:
-                    cam["polygons"] = [
-                        {"coord": [], "seen": 0, "name": ""},
-                        {"coord": [], "seen": 0, "name": ""}
-                    ]
-                cleared = "all"
-            else:
-                cam_id = int(cam_id)
-                if cam_id < 0 or cam_id >= len(current_stream["cameras"]):
-                    return web.json_response({"ok": False, "error": "invalid camera id"}, status=400)
-                current_stream["cameras"][cam_id]["polygons"] = [
-                    {"coord": [], "seen": 0, "name": ""},
-                    {"coord": [], "seen": 0, "name": ""}
-                ]
-                cleared = cam_id
-
-        # 🔑 overwrite polygons.json here
-        try:
-            with POLYGON_FILE.open("w", encoding="utf-8") as f:
-                json.dump(current_stream, f, ensure_ascii=False, indent=2)
-            print(f"🗑️ polygons.json updated after clearing {cleared}")
-        except Exception as e:
-            print("⚠️ Failed to write polygons.json:", e)
-
+        if cam_id is None:
+            store.clear_polygons(None)
+            cleared = "all"
+        else:
+            store.clear_polygons(int(cam_id))
+            cleared = int(cam_id)
         return web.json_response({"ok": True, "cleared": cleared})
-
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
 async def save_polygons(request):
     try:
         data = await request.json()
-        cam_id = int(data.get("camera_id", 0))
+        cam_id = int(data.get("camera_id"))
         polygons = data.get("polygons", [])
 
-        if cam_id < 0 or cam_id >= len(current_stream["cameras"]):
-            return web.json_response({"ok": False, "error": "invalid camera id"}, status=400)
+        cameras = store.get_all()["cameras"]
+        if cam_id not in [c.get("id") for c in cameras]:
+            return web.json_response({"ok": False, "error": f"camera_id {cam_id} not found"}, status=400)
 
-        with state_lock:
-            cam = current_stream["cameras"][cam_id]
-            # overwrite with received polygons (max 2)
-            cam["polygons"] = [
-                {"coord": p.get("coord", []), "seen": p.get("seen", 0), "name": p.get("name", "")}
-                for p in polygons[:2]
-            ]
-            # if less than 2 polygons, pad with empty
-            while len(cam["polygons"]) < 2:
-                cam["polygons"].append({"coord": [], "seen": 0, "name": ""})
-
-        # persist whole structure into local json
-        try:
-            with POLYGON_FILE.open("w", encoding="utf-8") as f:
-                json.dump(current_stream, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print("⚠️ Failed to save polygons to file:", e)
-
+        store.set_polygons(cam_id, polygons)
         return web.json_response({"ok": True, "saved": len(polygons), "camera_id": cam_id})
     except Exception as e:
-        traceback.print_exc()
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
 async def get_captured_image_jpg(request):
@@ -307,14 +226,14 @@ async def offer(request):
         params = await request.json()
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
-        # สร้าง PeerConnection ใหม่
+        # Create a new PeerConnection
         pc = RTCPeerConnection()
         pcs.add(pc)
 
         pc_id = str(uuid.uuid4())[:8]
         print(f"🎥 New peer connection: {pc_id}")
 
-        # เพิ่ม callback
+        # Add callbacks
         @pc.on("connectionstatechange")
         async def on_state_change():
             print(f"🔄 [{pc_id}] Connection state:", pc.connectionState)
@@ -323,10 +242,10 @@ async def offer(request):
                 pcs.discard(pc)
                 print(f"❌ [{pc_id}] Connection closed and removed")
 
-        # เพิ่ม video track
+        # Add video track
         pc.addTrack(FrameTrack())
 
-        # ทำขั้นตอน handshake
+        # Perform the handshake
         await pc.setRemoteDescription(offer)
         answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
@@ -356,7 +275,7 @@ def start_webrtc_server():
     app.router.add_post("/save_polygons", save_polygons)
     app.router.add_post("/clear_polygons", clear_polygons)
 
-    print(current_stream)
+    # print(current_stream)
 
     #redirect_video_feed
     app.router.add_get("/video_feed", redirect_video_feed)
@@ -375,14 +294,19 @@ def start_webrtc_server():
 
     # Enable CORS
     cors = aiohttp_cors.setup(app, defaults={
-    "*": aiohttp_cors.ResourceOptions(
-        allow_credentials=True,
-        expose_headers="*",
-        allow_headers="*",
-        allow_methods=["POST", "GET", "OPTIONS"]
+        "/offer": aiohttp_cors.ResourceOptions(
+            allow_credentials=True,
+            expose_headers="*",
+            allow_headers="*",
+            allow_methods=["POST", "OPTIONS"]
+        ),
+        "/set_frame": aiohttp_cors.ResourceOptions(
+            allow_credentials=True,
+            expose_headers="*",
+            allow_headers="*",
+            allow_methods=["POST", "OPTIONS"]
         )
     })
-
 
     for route in list(app.router.routes()):
         cors.add(route)
